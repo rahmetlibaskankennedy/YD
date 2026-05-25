@@ -1,0 +1,29 @@
+{
+  "id": "community.startvdizileri",
+  "version": "1.0.0",
+  "name": "Star TV Dizi Arşivi",
+  "description": "Star TV dizilerinin güncel tüm bölümlerini Nuvio üzerinden izleyin.",
+  "logo": "https://www.startv.com.tr/assets/images/star-tv-logo.png",
+  "resources": [
+    "catalog",
+    "meta",
+    "stream"
+  ],
+  "types": [
+    "series"
+  ],
+  "catalogs": [
+    {
+      "type": "series",
+      "id": "startv_dizileri",
+      "name": "Star TV Arşivi",
+      "extra": [
+        {
+          "name": "search",
+          "isRequired": false
+        }
+      ]
+    }
+  ],
+  "background": "https://www.startv.com.tr/assets/images/star-tv-logo.png"
+}
