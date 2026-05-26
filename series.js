@@ -13,7 +13,7 @@ const SERIES = [
     name: 'Börü',
     year: 2018,
     description: 'Türkiye\'nin en büyük tehditleriyle karşı karşıya kalan polis özel harekat biriminin destanı.',
-    tmdbId: 75365,
+    tmdbId: 75365, // ✅
     episodes: [
       { title: 'Bölüm 1 - Bazen Canavarlar Kazanır', streamPath: 'boru/boru-bolum1-1080', fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/boru/boru-bolum1-1080/chunklist.m3u8?st=jFVfh6jFlJRt2BiY32T--Q&e=1779828406' },
       { title: 'Bölüm 2 - Kar Gibi Beyaz',           streamPath: 'boru/boru2_tek',          fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/boru/boru2_tek/chunklist.m3u8?st=b3pTukWVBhU5lxjq0hWz8Q&e=1779828411' },
@@ -31,7 +31,7 @@ const SERIES = [
     name: 'Ateşböceği',
     year: 2017,
     description: 'İki zıt karakterin aşk hikayesini anlatan romantik drama dizisi.',
-    tmdbId: 72893,
+    tmdbId: 72893, // ✅
     episodes: [
       { title: 'Bölüm 1',      streamPath: 'atesbocegi/atesbocegi1_asds',   fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/atesbocegi/atesbocegi1_asds/chunklist.m3u8?st=dHItWBUZ9izB5OmTmMGcFQ&e=1779828474&r=16' },
       { title: 'Bölüm 2',      streamPath: 'atesbocegi/atesbocegi2',         fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/atesbocegi/atesbocegi2/chunklist.m3u8?st=0ZaPdNVY7YHhUNPEQTuJBQ&e=1779828493&r=16' },
@@ -80,7 +80,7 @@ const SERIES = [
     name: 'Kızılcık Şerbeti',
     year: 2022,
     description: 'İki farklı dünyadan ailenin çocuklarının evliliğiyle başlayan toplumsal çatışmaları konu alan dizi.',
-    tmdbId: 232659,
+    tmdbId: 213194, // düzeltildi: 232659 → 213194
     episodes: []
   },
   {
@@ -90,7 +90,7 @@ const SERIES = [
     name: 'Yalı Çapkını',
     year: 2022,
     description: 'İstanbul Boğazı\'nda geçen, köklü bir ailenin sırlarla dolu hikayesi.',
-    tmdbId: 220427,
+    tmdbId: 210865, // düzeltildi: 220427 → 210865
     episodes: []
   },
   {
@@ -112,7 +112,7 @@ const SERIES = [
     name: 'Kuruluş: Osman',
     year: 2019,
     description: 'Osmanlı İmparatorluğu\'nun kurucusu Osman Bey\'in destansı mücadelesini anlatan tarihi dizi.',
-    tmdbId: 93411,
+    tmdbId: 95603, // düzeltildi: 93411 → 95603
     episodes: []
   },
   {
@@ -122,7 +122,7 @@ const SERIES = [
     name: 'İçerde',
     year: 2016,
     description: 'Suç örgütüne sızan genç bir polisin çift kimlikli yaşamını anlatan gerilim dizisi.',
-    tmdbId: 68388,
+    tmdbId: 68388, // ✅
     episodes: []
   },
   {
@@ -144,7 +144,7 @@ const SERIES = [
     name: 'Yargı',
     year: 2021,
     description: 'Bir cinayetin peşine düşen savcı ve avukatın arasındaki gerilimi anlatan hukuk draması.',
-    tmdbId: 196075,
+    tmdbId: 133490, // düzeltildi: 196075 → 133490
     episodes: []
   },
   {
@@ -154,7 +154,7 @@ const SERIES = [
     name: 'Kardeşlerim',
     year: 2021,
     description: 'Ailelerini kaybeden dört kardeşin hayatta kalma mücadelesini anlatan dram.',
-    tmdbId: 193764,
+    tmdbId: 119267, // düzeltildi: 193764 → 119267
     episodes: []
   },
   {
@@ -176,7 +176,7 @@ const SERIES = [
     name: 'Mucize Doktor',
     year: 2019,
     description: 'Savant sendromlu genç doktorun hastane ortamında kendini ispat etme hikayesi.',
-    tmdbId: 93812,
+    tmdbId: 92967, // düzeltildi: 93812 → 92967
     episodes: []
   },
   {
@@ -186,7 +186,7 @@ const SERIES = [
     name: 'Sen Anlat Karadeniz',
     year: 2018,
     description: 'Karadeniz\'in doğasında, aile içi şiddetten kaçan güçlü bir kadının yeniden hayata tutunma hikayesi.',
-    tmdbId: 80340,
+    tmdbId: 77026, // düzeltildi: 80340 → 77026
     episodes: []
   },
   {
@@ -208,7 +208,7 @@ const SERIES = [
     name: 'Diriliş: Ertuğrul',
     year: 2014,
     description: 'Osmanlı öncesi dönemde Ertuğrul Gazi\'nin Moğol ve Haçlı tehditlerine karşı verdiği mücadeleyi anlatan tarihi dizi.',
-    tmdbId: 61766,
+    tmdbId: 66017, // düzeltildi: 61766 → 66017
     episodes: []
   },
   {
@@ -218,7 +218,7 @@ const SERIES = [
     name: 'Alparslan: Büyük Selçuklu',
     year: 2021,
     description: 'Sultan Alparslan\'ın Bizans\'a karşı Malazgirt Zaferi\'ne giden yolda verdiği mücadeleyi anlatan tarihi dizi.',
-    tmdbId: 195090,
+    tmdbId: 138171, // düzeltildi: 195090 → 138171
     episodes: []
   },
   {
