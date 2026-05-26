@@ -1,15 +1,16 @@
 'use strict';
 
-var https   = require('https');
 var express = require('express');
 var series_ = require('./series');
 var stream_ = require('./stream');
+var tmdb_   = require('./tmdb');
 
 var SERIES             = series_.SERIES;
 var CHANNELS           = series_.CHANNELS;
 var getSeriesById      = series_.getSeriesById;
 var getSeriesByChannel = series_.getSeriesByChannel;
 var resolveStreamUrl   = stream_.resolveStreamUrl;
+var getPosterUrl       = tmdb_.getPosterUrl;
 
 var app  = express();
 var PORT = process.env.PORT || 3000;
@@ -46,43 +47,12 @@ app.get('/manifest.json', function(req, res) {
 });
 
 // ── POSTER SİSTEMİ ────────────────────────────────────────────────────
-// Runtime'da TMDB API'den poster_path çekilir, önbelleğe alınır.
-// TMDB ID yoksa kanal renginde SVG poster üretilir.
-// Tüm posterler /poster/:seriesId.jpg üzerinden serve edilir.
+// tmdb.js üzerinden çalışır:
+//   - tmdbId varsa → direkt TMDB TV endpoint
+//   - tmdbId yoksa → name + year ile Search API (Türkçe, tr original_language öncelikli)
+// Her iki durumda TMDB poster bulunursa redirect, bulunamazsa SVG fallback.
 
-var posterCache = {}; // tmdbId → poster_path string
-
-// TMDB API'den poster_path çek
-function fetchTmdbPosterPath(tmdbId, cb) {
-  if (posterCache[tmdbId] !== undefined) return cb(null, posterCache[tmdbId]);
-
-  // Herkese açık TMDB read-only demo key
-  var path = '/3/tv/' + tmdbId + '?api_key=8265bd1679663a7ea12ac168da84d2e8&language=tr-TR';
-  var opts = {
-    hostname: 'api.themoviedb.org',
-    path: path,
-    method: 'GET',
-    headers: { 'Accept': 'application/json', 'User-Agent': 'TurkDiziAddon/1.2' }
-  };
-
-  var req = https.request(opts, function(res2) {
-    var raw = '';
-    res2.on('data', function(c) { raw += c; });
-    res2.on('end', function() {
-      try {
-        var json = JSON.parse(raw);
-        var p = json.poster_path || null;
-        posterCache[tmdbId] = p; // null da önbelleğe al (404 koruması)
-        cb(null, p);
-      } catch (e) { cb(e); }
-    });
-  });
-  req.on('error', cb);
-  req.setTimeout(5000, function() { req.destroy(); cb(new Error('timeout')); });
-  req.end();
-}
-
-// Kanal rengine göre SVG poster
+// Kanal rengine göre SVG poster (TMDB'de bulunamazsa gösterilir)
 function makeSvgPoster(name, channelName) {
   var colors = {
     'Star TV':  { bg: '#c8000a', accent: '#ff2233' },
@@ -94,7 +64,6 @@ function makeSvgPoster(name, channelName) {
   };
   var c = colors[channelName] || { bg: '#1a1a2e', accent: '#3a3a5e' };
 
-  // Dizi adını satırlara böl (≤13 karakter/satır)
   var words = name.split(' ');
   var lines = [];
   var cur = '';
@@ -106,8 +75,7 @@ function makeSvgPoster(name, channelName) {
   if (cur) lines.push(cur);
 
   var lh = 38;
-  var totalH = lines.length * lh;
-  var startY = 225 - totalH / 2 + lh * 0.75;
+  var startY = 225 - (lines.length * lh) / 2 + lh * 0.75;
 
   var texts = lines.map(function(line, i) {
     return '<text x="150" y="' + Math.round(startY + i * lh) + '" ' +
@@ -130,16 +98,12 @@ function makeSvgPoster(name, channelName) {
     '  </linearGradient>',
     '</defs>',
     '<rect width="300" height="450" fill="url(#bg)"/>',
-    // Üst şerit
     '<rect width="300" height="72" fill="url(#bar)"/>',
     '<text x="150" y="46" text-anchor="middle" font-family="Arial,sans-serif" ' +
       'font-size="18" font-weight="700" fill="#ffffffcc" letter-spacing="1">' +
       channelName + '</text>',
-    // Alt şerit
     '<rect y="378" width="300" height="72" fill="url(#bar)"/>',
-    // Dekoratif çizgi
     '<line x1="40" y1="390" x2="260" y2="390" stroke="#ffffff44" stroke-width="1"/>',
-    // Dizi adı
     texts,
     '</svg>'
   ].join('\n');
@@ -150,21 +114,17 @@ app.get('/poster/:seriesId.jpg', function(req, res) {
   var s = getSeriesById(req.params.seriesId);
   if (!s) return res.status(404).end();
 
-  // SVG yanıtı gönder
   function sendSvg() {
-    var svg = makeSvgPoster(s.name, s.channelName);
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Cache-Control', 'public, max-age=604800'); // 1 hafta
-    return res.send(svg);
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    return res.send(makeSvgPoster(s.name, s.channelName));
   }
 
-  if (!s.tmdbId) return sendSvg();
-
-  fetchTmdbPosterPath(s.tmdbId, function(err, posterPath) {
-    if (err || !posterPath) return sendSvg();
-    // TMDB CDN'e yönlendir — Stremio/Nuvio bu URL'yi doğrudan çeker
+  // tmdb.js: tmdbId varsa direkt çeker, yoksa name+year ile arar
+  getPosterUrl(s, function(url) {
+    if (!url) return sendSvg();
     res.setHeader('Cache-Control', 'public, max-age=604800');
-    return res.redirect(302, 'https://image.tmdb.org/t/p/w500' + posterPath);
+    return res.redirect(302, url);
   });
 });
 
