@@ -2,9 +2,31 @@
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w500';
 
-// poster: TMDB CDN URL'leri (public, token gerekmez)
-// Star TV dizileri için TMDB'de bulunanlar TMDB_IMG + path
-// TMDB'de olmayanlar için placehold.co (Stremio destekler)
+// Poster URL'leri artık /poster/:id endpoint'inden dinamik olarak üretiliyor.
+// TMDB poster_path bilinen diziler için sabit URL, bilinmeyenler için
+// /poster/:id endpoint'i SVG döndürüyor.
+
+// Bilinen TMDB poster path'leri (API çağrısı olmadan)
+const KNOWN_POSTERS = {
+  'startv_boru':           TMDB_IMG + '/oMuQPHuGYmSSAa9NHQFQL6KTxFE.jpg',
+  'startv_atesbocegi':     TMDB_IMG + '/bFb5nCPZqSBiqXnDoV0DtdM3oFX.jpg', // tmdb 72893
+  'kanald_kizilciksirbeti': TMDB_IMG + '/nOQtLbsRzBqTQX8FbOBfzFpNDj6.jpg',
+  'kanald_yali_capkini':   TMDB_IMG + '/7IaHCGhRMm2IODsVECmfPfMjugT.jpg',
+  'atv_kurulusoseman':     TMDB_IMG + '/gzODahVODDGRRxCg0TpbBiMGSVL.jpg',
+  'atv_icerde':            TMDB_IMG + '/h8tGnBxlzFJCmP71JFGJkNWoBME.jpg', // tmdb 68388
+  'showtv_yargi':          TMDB_IMG + '/A7EByudX0eqqBucQQeRkFjnoaWz.jpg',
+  'showtv_kardeslerim':    TMDB_IMG + '/rPAKOxn8p8sSKDDLDkzUXkbOQ43.jpg',
+  'foxtv_mucizedoktor':    TMDB_IMG + '/A5JHKEMOVaobXJMvmMbFLTWJJTG.jpg',
+  'foxtv_senanlatkaradeniz': TMDB_IMG + '/zUn7KFMpFQKHpWMiHJPpfcxDjkB.jpg',
+  'trt1_dirilis':          TMDB_IMG + '/yHhvSrTc5QKWG8TQs9m2fVflnZ9.jpg',
+  'trt1_alparslan':        TMDB_IMG + '/aRBJPBbFlUAjSnZoWqNuvnFT7LH.jpg',
+};
+
+function getPosterUrl(seriesId, host) {
+  if (KNOWN_POSTERS[seriesId]) return KNOWN_POSTERS[seriesId];
+  // Bilinmeyen poster → yerel SVG endpoint
+  return host + '/poster/' + seriesId + '.jpg';
+}
 
 const SERIES = [
   // ──────────── STAR TV ────────────
@@ -15,7 +37,6 @@ const SERIES = [
     name: 'Börü',
     year: 2018,
     description: 'Türkiye\'nin en büyük tehditleriyle karşı karşıya kalan polis özel harekat biriminin destanı.',
-    poster: TMDB_IMG + '/oMuQPHuGYmSSAa9NHQFQL6KTxFE.jpg',
     tmdbId: 75365,
     episodes: [
       { title: 'Bölüm 1 - Bazen Canavarlar Kazanır', streamPath: 'boru/boru-bolum1-1080', fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/boru/boru-bolum1-1080/chunklist.m3u8?st=jFVfh6jFlJRt2BiY32T--Q&e=1779828406' },
@@ -32,10 +53,9 @@ const SERIES = [
     channel: 'startv',
     channelName: 'Star TV',
     name: 'Ateşböceği',
-    year: 2019,
+    year: 2017,
     description: 'İki zıt karakterin aşk hikayesini anlatan romantik drama dizisi.',
-    poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Ates+bocegi',
-    tmdbId: null,
+    tmdbId: 72893,
     episodes: [
       { title: 'Bölüm 1',      streamPath: 'atesbocegi/atesbocegi1_asds',   fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/atesbocegi/atesbocegi1_asds/chunklist.m3u8?st=dHItWBUZ9izB5OmTmMGcFQ&e=1779828474&r=16' },
       { title: 'Bölüm 2',      streamPath: 'atesbocegi/atesbocegi2',         fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/atesbocegi/atesbocegi2/chunklist.m3u8?st=0ZaPdNVY7YHhUNPEQTuJBQ&e=1779828493&r=16' },
@@ -63,7 +83,6 @@ const SERIES = [
     name: 'Türk Malı',
     year: 2021,
     description: 'Geleneksel bir ailenin modern dünyayla çatışmasını anlatan aile komedisi.',
-    poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Turk+Mali',
     tmdbId: null,
     episodes: [
       { title: 'Bölüm 1', streamPath: 'turkmali/turkmali1bipsiz', fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/turkmali/turkmali1bipsiz/chunklist.m3u8?st=0spFxuPpbR-T8Pf3IEcsxg&e=1779828665&r=1' },
@@ -85,7 +104,6 @@ const SERIES = [
     name: 'Kızılcık Şerbeti',
     year: 2022,
     description: 'İki farklı dünyadan ailenin çocuklarının evliliğiyle başlayan toplumsal çatışmaları konu alan dizi.',
-    poster: TMDB_IMG + '/nOQtLbsRzBqTQX8FbOBfzFpNDj6.jpg',
     tmdbId: 232659,
     episodes: []
   },
@@ -96,7 +114,6 @@ const SERIES = [
     name: 'Yalı Çapkını',
     year: 2022,
     description: 'İstanbul Boğazı\'nda geçen, köklü bir ailenin sırlarla dolu hikayesi.',
-    poster: TMDB_IMG + '/7IaHCGhRMm2IODsVECmfPfMjugT.jpg',
     tmdbId: 220427,
     episodes: []
   },
@@ -107,7 +124,6 @@ const SERIES = [
     name: 'Gülümse Kaderine',
     year: 2023,
     description: 'Kaderlerinin kesiştiği iki insanın beklenmedik aşk hikayesi.',
-    poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Gulumse+Kaderine',
     tmdbId: null,
     episodes: []
   },
@@ -120,7 +136,6 @@ const SERIES = [
     name: 'Kuruluş: Osman',
     year: 2019,
     description: 'Osmanlı İmparatorluğu\'nun kurucusu Osman Bey\'in destansı mücadelesini anlatan tarihi dizi.',
-    poster: TMDB_IMG + '/gzODahVODDGRRxCg0TpbBiMGSVL.jpg',
     tmdbId: 93411,
     episodes: []
   },
@@ -131,8 +146,7 @@ const SERIES = [
     name: 'İçerde',
     year: 2016,
     description: 'Suç örgütüne sızan genç bir polisin çift kimlikli yaşamını anlatan gerilim dizisi.',
-    poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Icerde',
-    tmdbId: null,
+    tmdbId: 68388,
     episodes: []
   },
   {
@@ -142,7 +156,6 @@ const SERIES = [
     name: 'Gelin Evi',
     year: 2014,
     description: 'Türk aile geleneklerini ve gelin-kaynana ilişkilerini işleyen eğlenceli program.',
-    poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Gelin+Evi',
     tmdbId: null,
     episodes: []
   },
@@ -155,7 +168,6 @@ const SERIES = [
     name: 'Yargı',
     year: 2021,
     description: 'Bir cinayetin peşine düşen savcı ve avukatın arasındaki gerilimi anlatan hukuk draması.',
-    poster: TMDB_IMG + '/A7EByudX0eqqBucQQeRkFjnoaWz.jpg',
     tmdbId: 196075,
     episodes: []
   },
@@ -166,7 +178,6 @@ const SERIES = [
     name: 'Kardeşlerim',
     year: 2021,
     description: 'Ailelerini kaybeden dört kardeşin hayatta kalma mücadelesini anlatan dram.',
-    poster: TMDB_IMG + '/rPAKOxn8p8sSKDDLDkzUXkbOQ43.jpg',
     tmdbId: 193764,
     episodes: []
   },
@@ -177,7 +188,6 @@ const SERIES = [
     name: 'Kaderimin Oyunu',
     year: 2020,
     description: 'Trajik bir kazanın hayatlarını değiştirdiği iki ailenin dramatik hikayesi.',
-    poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Kaderimin+Oyunu',
     tmdbId: null,
     episodes: []
   },
@@ -190,7 +200,6 @@ const SERIES = [
     name: 'Mucize Doktor',
     year: 2019,
     description: 'Savant sendromlu genç doktorun hastane ortamında kendini ispat etme hikayesi.',
-    poster: TMDB_IMG + '/A5JHKEMOVaobXJMvmMbFLTWJJTG.jpg',
     tmdbId: 93812,
     episodes: []
   },
@@ -201,7 +210,6 @@ const SERIES = [
     name: 'Sen Anlat Karadeniz',
     year: 2018,
     description: 'Karadeniz\'in doğasında, aile içi şiddetten kaçan güçlü bir kadının yeniden hayata tutunma hikayesi.',
-    poster: TMDB_IMG + '/zUn7KFMpFQKHpWMiHJPpfcxDjkB.jpg',
     tmdbId: 80340,
     episodes: []
   },
@@ -212,7 +220,6 @@ const SERIES = [
     name: 'Hayat Bilgisi',
     year: 2020,
     description: 'İş ve aşk hayatında dengeyi arayan bir kadının günlük maceralarını anlatan komedi.',
-    poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Hayat+Bilgisi',
     tmdbId: null,
     episodes: []
   },
@@ -225,7 +232,6 @@ const SERIES = [
     name: 'Diriliş: Ertuğrul',
     year: 2014,
     description: 'Osmanlı öncesi dönemde Ertuğrul Gazi\'nin Moğol ve Haçlı tehditlerine karşı verdiği mücadeleyi anlatan tarihi dizi.',
-    poster: TMDB_IMG + '/yHhvSrTc5QKWG8TQs9m2fVflnZ9.jpg',
     tmdbId: 61766,
     episodes: []
   },
@@ -236,7 +242,6 @@ const SERIES = [
     name: 'Alparslan: Büyük Selçuklu',
     year: 2021,
     description: 'Sultan Alparslan\'ın Bizans\'a karşı Malazgirt Zaferi\'ne giden yolda verdiği mücadeleyi anlatan tarihi dizi.',
-    poster: TMDB_IMG + '/aRBJPBbFlUAjSnZoWqNuvnFT7LH.jpg',
     tmdbId: 195090,
     episodes: []
   },
@@ -247,7 +252,6 @@ const SERIES = [
     name: 'Gönül Dağı',
     year: 2020,
     description: 'Anadolu\'nun küçük bir kasabasında, farklı insanların yaşam hikayelerini sıcak bir dille anlatan dizi.',
-    poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Gonul+Dagi',
     tmdbId: null,
     episodes: []
   },
@@ -270,4 +274,4 @@ function getSeriesByChannel(channelId) {
   return SERIES.filter(function(s) { return s.channel === channelId; });
 }
 
-module.exports = { SERIES, CHANNELS, getSeriesById, getSeriesByChannel };
+module.exports = { SERIES, CHANNELS, KNOWN_POSTERS, getPosterUrl, getSeriesById, getSeriesByChannel };
