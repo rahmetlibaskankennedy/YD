@@ -1,18 +1,15 @@
 'use strict';
 
-var http    = require('http');
 var https   = require('https');
 var express = require('express');
 var series_ = require('./series');
 var stream_ = require('./stream');
 
-var SERIES           = series_.SERIES;
-var CHANNELS         = series_.CHANNELS;
-var KNOWN_POSTERS    = series_.KNOWN_POSTERS;
-var getPosterUrl     = series_.getPosterUrl;
-var getSeriesById    = series_.getSeriesById;
+var SERIES             = series_.SERIES;
+var CHANNELS           = series_.CHANNELS;
+var getSeriesById      = series_.getSeriesById;
 var getSeriesByChannel = series_.getSeriesByChannel;
-var resolveStreamUrl = stream_.resolveStreamUrl;
+var resolveStreamUrl   = stream_.resolveStreamUrl;
 
 var app  = express();
 var PORT = process.env.PORT || 3000;
@@ -27,7 +24,7 @@ app.use(function(req, res, next) {
 // ── MANIFEST ─────────────────────────────────────────────────────────
 var MANIFEST = {
   id: 'community.turkishdiziaddon',
-  version: '1.1.0',
+  version: '1.2.0',
   name: '🇹🇷 Türk Dizileri',
   description: 'Star TV, Kanal D, ATV, Show TV, FOX TV ve TRT 1 dizileri',
   logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Flag_of_Turkey.svg/200px-Flag_of_Turkey.svg.png',
@@ -48,112 +45,127 @@ app.get('/manifest.json', function(req, res) {
   res.json(MANIFEST);
 });
 
-// ── POSTER PROXY ──────────────────────────────────────────────────────
-// TMDB ID'si olan dizilerde TMDB'den poster çekip proxy'ler,
-// olmayanlar için SVG poster üretir.
-// Stremio ve Nuvio bu endpointi doğrudan görsel olarak gösterir.
+// ── POSTER SİSTEMİ ────────────────────────────────────────────────────
+// Runtime'da TMDB API'den poster_path çekilir, önbelleğe alınır.
+// TMDB ID yoksa kanal renginde SVG poster üretilir.
+// Tüm posterler /poster/:seriesId.jpg üzerinden serve edilir.
 
-// TMDB poster_path önbelleği (runtime'da dolar)
-var posterCache = {};
+var posterCache = {}; // tmdbId → poster_path string
 
-function fetchTmdbPosterPath(tmdbId, callback) {
-  if (posterCache[tmdbId]) return callback(null, posterCache[tmdbId]);
-  // TMDB public API (read-only key gerekmez, anonimdir — rate limit yüksek)
-  var apiKey = '8265bd1679663a7ea12ac168da84d2e8'; // public demo key
-  var options = {
+// TMDB API'den poster_path çek
+function fetchTmdbPosterPath(tmdbId, cb) {
+  if (posterCache[tmdbId] !== undefined) return cb(null, posterCache[tmdbId]);
+
+  // Herkese açık TMDB read-only demo key
+  var path = '/3/tv/' + tmdbId + '?api_key=8265bd1679663a7ea12ac168da84d2e8&language=tr-TR';
+  var opts = {
     hostname: 'api.themoviedb.org',
-    path: '/3/tv/' + tmdbId + '?api_key=' + apiKey + '&language=tr-TR',
+    path: path,
     method: 'GET',
-    headers: { 'Accept': 'application/json' }
+    headers: { 'Accept': 'application/json', 'User-Agent': 'TurkDiziAddon/1.2' }
   };
-  var req = https.request(options, function(res2) {
-    var data = '';
-    res2.on('data', function(chunk) { data += chunk; });
+
+  var req = https.request(opts, function(res2) {
+    var raw = '';
+    res2.on('data', function(c) { raw += c; });
     res2.on('end', function() {
       try {
-        var json = JSON.parse(data);
-        var path = json.poster_path || null;
-        if (path) posterCache[tmdbId] = path;
-        callback(null, path);
-      } catch(e) { callback(e); }
+        var json = JSON.parse(raw);
+        var p = json.poster_path || null;
+        posterCache[tmdbId] = p; // null da önbelleğe al (404 koruması)
+        cb(null, p);
+      } catch (e) { cb(e); }
     });
   });
-  req.on('error', callback);
+  req.on('error', cb);
+  req.setTimeout(5000, function() { req.destroy(); cb(new Error('timeout')); });
   req.end();
 }
 
+// Kanal rengine göre SVG poster
 function makeSvgPoster(name, channelName) {
-  // Kanalın rengini belirle
   var colors = {
-    'Star TV':  { bg: '#e8000d', text: '#ffffff' },
-    'Kanal D':  { bg: '#0057a8', text: '#ffffff' },
-    'ATV':      { bg: '#ff6600', text: '#ffffff' },
-    'Show TV':  { bg: '#9b1c8a', text: '#ffffff' },
-    'FOX TV':   { bg: '#003087', text: '#ffffff' },
-    'TRT 1':    { bg: '#006633', text: '#ffffff' },
+    'Star TV':  { bg: '#c8000a', accent: '#ff2233' },
+    'Kanal D':  { bg: '#0057a8', accent: '#1a7fd4' },
+    'ATV':      { bg: '#e05500', accent: '#ff7722' },
+    'Show TV':  { bg: '#7b1082', accent: '#b030bc' },
+    'FOX TV':   { bg: '#002060', accent: '#003da5' },
+    'TRT 1':    { bg: '#005227', accent: '#007a3d' },
   };
-  var c = colors[channelName] || { bg: '#1a1a2e', text: '#ffffff' };
+  var c = colors[channelName] || { bg: '#1a1a2e', accent: '#3a3a5e' };
 
-  // İsmi satırlara böl (max 15 karakter/satır)
+  // Dizi adını satırlara böl (≤13 karakter/satır)
   var words = name.split(' ');
   var lines = [];
-  var current = '';
+  var cur = '';
   words.forEach(function(w) {
-    if ((current + ' ' + w).trim().length > 14) {
-      if (current) lines.push(current.trim());
-      current = w;
-    } else {
-      current = (current + ' ' + w).trim();
-    }
+    var test = cur ? cur + ' ' + w : w;
+    if (test.length > 13 && cur) { lines.push(cur); cur = w; }
+    else { cur = test; }
   });
-  if (current) lines.push(current.trim());
+  if (cur) lines.push(cur);
 
-  var lineHeight = 36;
-  var startY = 200 - (lines.length * lineHeight) / 2;
-  var textElements = lines.map(function(line, i) {
-    return '<text x="150" y="' + (startY + i * lineHeight) + '" text-anchor="middle" font-family="Arial,sans-serif" font-size="28" font-weight="bold" fill="' + c.text + '">' + line + '</text>';
-  }).join('');
+  var lh = 38;
+  var totalH = lines.length * lh;
+  var startY = 225 - totalH / 2 + lh * 0.75;
+
+  var texts = lines.map(function(line, i) {
+    return '<text x="150" y="' + Math.round(startY + i * lh) + '" ' +
+      'text-anchor="middle" font-family="Arial Black,Arial,sans-serif" ' +
+      'font-size="26" font-weight="900" fill="#ffffff" ' +
+      'paint-order="stroke" stroke="#00000066" stroke-width="3">' +
+      line + '</text>';
+  }).join('\n');
 
   return [
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450" width="300" height="450">',
-    '<rect width="300" height="450" fill="' + c.bg + '"/>',
-    '<rect x="0" y="0" width="300" height="80" fill="rgba(0,0,0,0.3)"/>',
-    '<text x="150" y="52" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="bold" fill="' + c.text + '" opacity="0.9">' + channelName + '</text>',
-    textElements,
-    '<rect x="0" y="400" width="300" height="50" fill="rgba(0,0,0,0.3)"/>',
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450">',
+    '<defs>',
+    '  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">',
+    '    <stop offset="0%" stop-color="' + c.accent + '"/>',
+    '    <stop offset="100%" stop-color="' + c.bg + '"/>',
+    '  </linearGradient>',
+    '  <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">',
+    '    <stop offset="0%" stop-color="#00000066"/>',
+    '    <stop offset="100%" stop-color="#000000cc"/>',
+    '  </linearGradient>',
+    '</defs>',
+    '<rect width="300" height="450" fill="url(#bg)"/>',
+    // Üst şerit
+    '<rect width="300" height="72" fill="url(#bar)"/>',
+    '<text x="150" y="46" text-anchor="middle" font-family="Arial,sans-serif" ' +
+      'font-size="18" font-weight="700" fill="#ffffffcc" letter-spacing="1">' +
+      channelName + '</text>',
+    // Alt şerit
+    '<rect y="378" width="300" height="72" fill="url(#bar)"/>',
+    // Dekoratif çizgi
+    '<line x1="40" y1="390" x2="260" y2="390" stroke="#ffffff44" stroke-width="1"/>',
+    // Dizi adı
+    texts,
     '</svg>'
-  ].join('');
+  ].join('\n');
 }
 
-// /poster/:seriesId.jpg  → TMDB proxy veya SVG poster
+// /poster/:seriesId.jpg
 app.get('/poster/:seriesId.jpg', function(req, res) {
   var s = getSeriesById(req.params.seriesId);
   if (!s) return res.status(404).end();
 
-  // Bilinen sabit poster varsa redirect et
-  if (KNOWN_POSTERS[s.id]) {
-    return res.redirect(302, KNOWN_POSTERS[s.id]);
-  }
-
-  // TMDB ID'si varsa API'den çek
-  if (s.tmdbId) {
-    fetchTmdbPosterPath(s.tmdbId, function(err, path) {
-      if (!err && path) {
-        return res.redirect(302, 'https://image.tmdb.org/t/p/w500' + path);
-      }
-      // Hata durumunda SVG
-      var svg = makeSvgPoster(s.name, s.channelName);
-      res.setHeader('Content-Type', 'image/svg+xml');
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.send(svg);
-    });
-  } else {
-    // TMDB ID'si yok → SVG poster
+  // SVG yanıtı gönder
+  function sendSvg() {
     var svg = makeSvgPoster(s.name, s.channelName);
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.send(svg);
+    res.setHeader('Cache-Control', 'public, max-age=604800'); // 1 hafta
+    return res.send(svg);
   }
+
+  if (!s.tmdbId) return sendSvg();
+
+  fetchTmdbPosterPath(s.tmdbId, function(err, posterPath) {
+    if (err || !posterPath) return sendSvg();
+    // TMDB CDN'e yönlendir — Stremio/Nuvio bu URL'yi doğrudan çeker
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    return res.redirect(302, 'https://image.tmdb.org/t/p/w500' + posterPath);
+  });
 });
 
 // ── CATALOG ──────────────────────────────────────────────────────────
@@ -166,6 +178,10 @@ var CATALOG_MAP = {
   'trt1_catalog':   'trt1',
 };
 
+function posterUrl(s, host) {
+  return host + '/poster/' + s.id + '.jpg';
+}
+
 app.get('/catalog/:type/:id.json', function(req, res) {
   var channelId = CATALOG_MAP[req.params.id];
   if (!channelId) return res.json({ metas: [] });
@@ -177,12 +193,11 @@ app.get('/catalog/:type/:id.json', function(req, res) {
       type: 'series',
       name: s.name,
       year: s.year,
-      poster: getPosterUrl(s.id, host),
+      poster: posterUrl(s, host),
       description: s.description,
       genres: [s.channelName],
     };
   });
-
   res.json({ metas: metas });
 });
 
@@ -208,7 +223,7 @@ app.get('/meta/:type/:id.json', function(req, res) {
       type: 'series',
       name: s.name,
       year: s.year,
-      poster: getPosterUrl(s.id, host),
+      poster: posterUrl(s, host),
       description: s.description,
       genres: [s.channelName],
       videos: videos,
