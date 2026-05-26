@@ -3,7 +3,7 @@
 var express  = require('express');
 var series_  = require('./series');
 var stream_  = require('./stream');
-var tmdb_    = require('./tmdb'); // TMDB modülü entegre edildi
+var tmdb_    = require('./tmdb');
 
 var SERIES           = series_.SERIES;
 var CHANNELS         = series_.CHANNELS;
@@ -11,7 +11,6 @@ var getSeriesById    = series_.getSeriesById;
 var getSeriesByChannel = series_.getSeriesByChannel;
 var resolveStreamUrl = stream_.resolveStreamUrl;
 
-// TMDB poster çözücü fonksiyonları tanımlandı
 var fetchPosterByTmdbId = tmdb_.fetchPosterByTmdbId;
 var fetchPosterByQuery = tmdb_.fetchPosterByQuery;
 
@@ -58,36 +57,27 @@ app.get('/manifest.json', function(req, res) {
   res.json(MANIFEST);
 });
 
-// ── CATALOG (Poster Sorunu İçin Tamamen Asenkron Yapıldı) ──────────────
+// ── CATALOG ──────────────────────────────────────────────────────────
 app.get('/catalog/:type/:id.json', function(req, res) {
   var channelId = CATALOG_MAP[req.params.id];
   if (!channelId) return res.json({ metas: [] });
 
   var seriesList = getSeriesByChannel(channelId);
 
-  // Her bir dizi için TMDB'den poster çekecek Promise dizisi oluşturuluyor
   var promises = seriesList.map(function(s) {
-    // Eğer seride zaten geçerli bir TMDB görsel linki elle girilmişse istek atma
     if (s.poster && s.poster.includes('image.tmdb.org')) {
       return Promise.resolve({ s: s, poster: s.poster });
     }
 
-    // Öncelik tmdbId'de, yoksa tmdbQuery veya dizi adıyla arama yapılıyor
-    var posterPromise;
-    if (s.tmdbId) {
-      posterPromise = fetchPosterByTmdbId(s.tmdbId);
-    } else {
-      var queryStr = s.tmdbQuery || (s.name + " Turkish");
-      posterPromise = fetchPosterByQuery(queryStr);
-    }
+    var posterPromise = s.tmdbId 
+      ? fetchPosterByTmdbId(s.tmdbId) 
+      : fetchPosterByQuery(s.name + " Turkish");
 
     return posterPromise.then(function(fetchedPoster) {
-      // TMDB'den poster geldiyse onu kullan, gelmediyse placeholder/mevcut posteri koru
       return { s: s, poster: fetchedPoster || s.poster };
     });
   });
 
-  // Tüm poster istekleri bittiğinde Stremio'ya tek seferde yanıt dönülüyor
   Promise.all(promises).then(function(results) {
     var metas = results.map(function(item) {
       return {
@@ -97,22 +87,13 @@ app.get('/catalog/:type/:id.json', function(req, res) {
         year: item.s.year,
         poster: item.poster,
         description: item.s.description,
-        genres: [item.s.channelName]
+        genres: [item.s.channelName],
       };
     });
     res.json({ metas: metas });
   }).catch(function() {
-    // Hata durumunda sistemin çökmemesi için fallback olarak ham veriyi bas
     var fallbackMetas = seriesList.map(function(s) {
-      return {
-        id: s.id,
-        type: 'series',
-        name: s.name,
-        year: s.year,
-        poster: s.poster,
-        description: s.description,
-        genres: [s.channelName]
-      };
+      return { id: s.id, type: 'series', name: s.name, year: s.year, poster: s.poster };
     });
     res.json({ metas: fallbackMetas });
   });
@@ -123,14 +104,13 @@ app.get('/meta/:type/:id.json', function(req, res) {
   var s = getSeriesById(req.params.id);
   if (!s) return res.json({ meta: null });
 
-  // Detay sayfası açıldığında da güncel posteri basabilmek adına asenkron kontrol
   var posterPromise;
   if (s.poster && s.poster.includes('image.tmdb.org')) {
     posterPromise = Promise.resolve(s.poster);
   } else if (s.tmdbId) {
     posterPromise = fetchPosterByTmdbId(s.tmdbId);
   } else {
-    posterPromise = fetchPosterByQuery(s.tmdbQuery || (s.name + " Turkish"));
+    posterPromise = fetchPosterByQuery(s.name + " Turkish");
   }
 
   posterPromise.then(function(resolvedPoster) {
