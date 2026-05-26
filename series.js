@@ -18,7 +18,7 @@ const KNOWN_POSTERS = {
   'showtv_kardeslerim':    TMDB_IMG + '/rPAKOxn8p8sSKDDLDkzUXkbOQ43.jpg',
   'foxtv_mucizedoktor':    TMDB_IMG + '/A5JHKEMOVaobXJMvmMbFLTWJJTG.jpg',
   'foxtv_senanlatkaradeniz': TMDB_IMG + '/zUn7KFMpFQKHpWMiHJPpfcxDjkB.jpg',
-  'trt1_dirilis':          TMDB_IMG + '/yHhvSrTc5QKWG8TQs9m2fVflnZ9.jpg',
+  'trt1_dirilis':          TMDB_IMG + '/yHhvSrTc5QKWG8TQs9m2fVflnZ9.jpg', // tmdb 66017
   'trt1_alparslan':        TMDB_IMG + '/aRBJPBbFlUAjSnZoWqNuvnFT7LH.jpg',
 };
 
