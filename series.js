@@ -1,32 +1,8 @@
 'use strict';
 
-const TMDB_IMG = 'https://image.tmdb.org/t/p/w500';
-
-// Poster URL'leri artık /poster/:id endpoint'inden dinamik olarak üretiliyor.
-// TMDB poster_path bilinen diziler için sabit URL, bilinmeyenler için
-// /poster/:id endpoint'i SVG döndürüyor.
-
-// Bilinen TMDB poster path'leri (API çağrısı olmadan)
-const KNOWN_POSTERS = {
-  'startv_boru':           TMDB_IMG + '/oMuQPHuGYmSSAa9NHQFQL6KTxFE.jpg',
-  'startv_atesbocegi':     TMDB_IMG + '/bFb5nCPZqSBiqXnDoV0DtdM3oFX.jpg', // tmdb 72893
-  'kanald_kizilciksirbeti': TMDB_IMG + '/nOQtLbsRzBqTQX8FbOBfzFpNDj6.jpg',
-  'kanald_yali_capkini':   TMDB_IMG + '/7IaHCGhRMm2IODsVECmfPfMjugT.jpg',
-  'atv_kurulusoseman':     TMDB_IMG + '/gzODahVODDGRRxCg0TpbBiMGSVL.jpg',
-  'atv_icerde':            TMDB_IMG + '/h8tGnBxlzFJCmP71JFGJkNWoBME.jpg', // tmdb 68388
-  'showtv_yargi':          TMDB_IMG + '/A7EByudX0eqqBucQQeRkFjnoaWz.jpg',
-  'showtv_kardeslerim':    TMDB_IMG + '/rPAKOxn8p8sSKDDLDkzUXkbOQ43.jpg',
-  'foxtv_mucizedoktor':    TMDB_IMG + '/A5JHKEMOVaobXJMvmMbFLTWJJTG.jpg',
-  'foxtv_senanlatkaradeniz': TMDB_IMG + '/zUn7KFMpFQKHpWMiHJPpfcxDjkB.jpg',
-  'trt1_dirilis':          TMDB_IMG + '/yHhvSrTc5QKWG8TQs9m2fVflnZ9.jpg', // tmdb 66017
-  'trt1_alparslan':        TMDB_IMG + '/aRBJPBbFlUAjSnZoWqNuvnFT7LH.jpg',
-};
-
-function getPosterUrl(seriesId, host) {
-  if (KNOWN_POSTERS[seriesId]) return KNOWN_POSTERS[seriesId];
-  // Bilinmeyen poster → yerel SVG endpoint
-  return host + '/poster/' + seriesId + '.jpg';
-}
+// Tüm posterler /poster/:seriesId.jpg endpoint'inden dinamik olarak üretilir.
+// TMDB ID'si olan diziler → TMDB API'den poster çekilir (sunucu tarafında önbellek)
+// TMDB ID'si olmayan diziler → kanal rengine göre SVG poster üretilir
 
 const SERIES = [
   // ──────────── STAR TV ────────────
@@ -274,4 +250,4 @@ function getSeriesByChannel(channelId) {
   return SERIES.filter(function(s) { return s.channel === channelId; });
 }
 
-module.exports = { SERIES, CHANNELS, KNOWN_POSTERS, getPosterUrl, getSeriesById, getSeriesByChannel };
+module.exports = { SERIES, CHANNELS, getSeriesById, getSeriesByChannel };
