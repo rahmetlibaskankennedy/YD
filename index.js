@@ -67,7 +67,7 @@ app.get('/catalog/:type/:id.json', function(req, res) {
 
   // Her bir dizi için TMDB'den poster çekecek Promise dizisi oluşturuluyor
   var promises = seriesList.map(function(s) {
-    // Eğer seride zaten geçerli bir TMDB görsel linki elle girilmişse (örn: Börü) istek atma
+    // Eğer seride zaten geçerli bir TMDB görsel linki elle girilmişse istek atma
     if (s.poster && s.poster.includes('image.tmdb.org')) {
       return Promise.resolve({ s: s, poster: s.poster });
     }
@@ -123,8 +123,7 @@ app.get('/meta/:type/:id.json', function(req, res) {
   var s = getSeriesById(req.params.id);
   if (!s) return res.json({ meta: null });
 
-  // Detay sayfası açıldığında da güncel posteri basabilmek adına, 
-  // eğer dizi nesnesinde elle girilmiş TMDB linki yoksa dinamik yakalamayı destekle
+  // Detay sayfası açıldığında da güncel posteri basabilmek adına asenkron kontrol
   var posterPromise;
   if (s.poster && s.poster.includes('image.tmdb.org')) {
     posterPromise = Promise.resolve(s.poster);
