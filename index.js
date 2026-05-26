@@ -3,12 +3,17 @@
 var express  = require('express');
 var series_  = require('./series');
 var stream_  = require('./stream');
+var tmdb_    = require('./tmdb'); // TMDB modülü entegre edildi
 
 var SERIES           = series_.SERIES;
 var CHANNELS         = series_.CHANNELS;
 var getSeriesById    = series_.getSeriesById;
 var getSeriesByChannel = series_.getSeriesByChannel;
 var resolveStreamUrl = stream_.resolveStreamUrl;
+
+// TMDB poster çözücü fonksiyonları tanımlandı
+var fetchPosterByTmdbId = tmdb_.fetchPosterByTmdbId;
+var fetchPosterByQuery = tmdb_.fetchPosterByQuery;
 
 var app  = express();
 var PORT = process.env.PORT || 3000;
@@ -31,46 +36,86 @@ var MANIFEST = {
   types: ['series'],
   idPrefixes: ['startv_', 'kanald_', 'atv_', 'showtv_', 'foxtv_', 'trt1_'],
   catalogs: [
-    { type: 'series', id: 'startv_catalog', name: 'Star TV Dizileri',  extra: [{ name: 'skip', isRequired: false }] },
-    { type: 'series', id: 'kanald_catalog', name: 'Kanal D Dizileri',  extra: [{ name: 'skip', isRequired: false }] },
-    { type: 'series', id: 'atv_catalog',    name: 'ATV Dizileri',      extra: [{ name: 'skip', isRequired: false }] },
-    { type: 'series', id: 'showtv_catalog', name: 'Show TV Dizileri',  extra: [{ name: 'skip', isRequired: false }] },
-    { type: 'series', id: 'foxtv_catalog',  name: 'FOX TV Dizileri',   extra: [{ name: 'skip', isRequired: false }] },
-    { type: 'series', id: 'trt1_catalog',   name: 'TRT 1 Dizileri',    extra: [{ name: 'skip', isRequired: false }] },
+    { type: 'series', id: 'startv_catalog', name: 'Star TV Dizileri' },
+    { type: 'series', id: 'kanald_catalog', name: 'Kanal D Dizileri' },
+    { type: 'series', id: 'atv_catalog',    name: 'ATV Dizileri' },
+    { type: 'series', id: 'showtv_catalog', name: 'Show TV Dizileri' },
+    { type: 'series', id: 'foxtv_catalog',  name: 'FOX TV Dizileri' },
+    { type: 'series', id: 'trt1_catalog',   name: 'TRT 1 Dizileri' }
   ]
 };
 
-app.get('/manifest.json', function(req, res) {
-  res.json(MANIFEST);
-});
-
-// ── CATALOG ──────────────────────────────────────────────────────────
 var CATALOG_MAP = {
   'startv_catalog': 'startv',
   'kanald_catalog': 'kanald',
   'atv_catalog':    'atv',
   'showtv_catalog': 'showtv',
   'foxtv_catalog':  'foxtv',
-  'trt1_catalog':   'trt1',
+  'trt1_catalog':   'trt1'
 };
 
+app.get('/manifest.json', function(req, res) {
+  res.json(MANIFEST);
+});
+
+// ── CATALOG (Poster Sorunu İçin Tamamen Asenkron Yapıldı) ──────────────
 app.get('/catalog/:type/:id.json', function(req, res) {
   var channelId = CATALOG_MAP[req.params.id];
   if (!channelId) return res.json({ metas: [] });
 
-  var metas = getSeriesByChannel(channelId).map(function(s) {
-    return {
-      id: s.id,
-      type: 'series',
-      name: s.name,
-      year: s.year,
-      poster: s.poster,
-      description: s.description,
-      genres: [s.channelName],
-    };
+  var seriesList = getSeriesByChannel(channelId);
+
+  // Her bir dizi için TMDB'den poster çekecek Promise dizisi oluşturuluyor
+  var promises = seriesList.map(function(s) {
+    // Eğer seride zaten geçerli bir TMDB görsel linki elle girilmişse (örn: Börü) istek atma
+    if (s.poster && s.poster.includes('image.tmdb.org')) {
+      return Promise.resolve({ s: s, poster: s.poster });
+    }
+
+    // Öncelik tmdbId'de, yoksa tmdbQuery veya dizi adıyla arama yapılıyor
+    var posterPromise;
+    if (s.tmdbId) {
+      posterPromise = fetchPosterByTmdbId(s.tmdbId);
+    } else {
+      var queryStr = s.tmdbQuery || (s.name + " Turkish");
+      posterPromise = fetchPosterByQuery(queryStr);
+    }
+
+    return posterPromise.then(function(fetchedPoster) {
+      // TMDB'den poster geldiyse onu kullan, gelmediyse placeholder/mevcut posteri koru
+      return { s: s, poster: fetchedPoster || s.poster };
+    });
   });
 
-  res.json({ metas: metas });
+  // Tüm poster istekleri bittiğinde Stremio'ya tek seferde yanıt dönülüyor
+  Promise.all(promises).then(function(results) {
+    var metas = results.map(function(item) {
+      return {
+        id: item.s.id,
+        type: 'series',
+        name: item.s.name,
+        year: item.s.year,
+        poster: item.poster,
+        description: item.s.description,
+        genres: [item.s.channelName]
+      };
+    });
+    res.json({ metas: metas });
+  }).catch(function() {
+    // Hata durumunda sistemin çökmemesi için fallback olarak ham veriyi bas
+    var fallbackMetas = seriesList.map(function(s) {
+      return {
+        id: s.id,
+        type: 'series',
+        name: s.name,
+        year: s.year,
+        poster: s.poster,
+        description: s.description,
+        genres: [s.channelName]
+      };
+    });
+    res.json({ metas: fallbackMetas });
+  });
 });
 
 // ── META ─────────────────────────────────────────────────────────────
@@ -78,53 +123,76 @@ app.get('/meta/:type/:id.json', function(req, res) {
   var s = getSeriesById(req.params.id);
   if (!s) return res.json({ meta: null });
 
-  var videos = s.episodes.map(function(ep, idx) {
-    return {
-      id: s.id + ':' + idx,
-      title: ep.title,
-      season: 1,
-      episode: idx + 1,
-      released: new Date(s.year, 0, 1 + idx).toISOString(),
-    };
-  });
+  // Detay sayfası açıldığında da güncel posteri basabilmek adına, 
+  // eğer dizi nesnesinde elle girilmiş TMDB linki yoksa dinamik yakalamayı destekle
+  var posterPromise;
+  if (s.poster && s.poster.includes('image.tmdb.org')) {
+    posterPromise = Promise.resolve(s.poster);
+  } else if (s.tmdbId) {
+    posterPromise = fetchPosterByTmdbId(s.tmdbId);
+  } else {
+    posterPromise = fetchPosterByQuery(s.tmdbQuery || (s.name + " Turkish"));
+  }
 
-  res.json({
-    meta: {
+  posterPromise.then(function(resolvedPoster) {
+    var meta = {
       id: s.id,
       type: 'series',
       name: s.name,
       year: s.year,
-      poster: s.poster,
-      description: s.description,
       genres: [s.channelName],
-      videos: videos,
-    }
+      poster: resolvedPoster || s.poster,
+      description: s.description,
+      videos: s.episodes.map(function(ep, index) {
+        return {
+          id: s.id + ':' + (index + 1),
+          title: ep.title,
+          season: 1,
+          episode: index + 1,
+          released: new Date(2024, 0, index + 1).toISOString()
+        };
+      })
+    };
+    res.json({ meta: meta });
+  }).catch(function() {
+    res.json({
+      meta: {
+        id: s.id,
+        type: 'series',
+        name: s.name,
+        year: s.year,
+        genres: [s.channelName],
+        poster: s.poster,
+        description: s.description,
+        videos: s.episodes.map(function(ep, index) {
+          return { id: s.id + ':' + (index + 1), title: ep.title, season: 1, episode: index + 1 };
+        })
+      }
+    });
   });
 });
 
 // ── STREAM ───────────────────────────────────────────────────────────
-// id formatı: "startv_turkmali:3"
 app.get('/stream/:type/:id.json', function(req, res) {
-  var parts    = req.params.id.split(':');
+  var parts = req.params.id.split(':');
   var seriesId = parts[0];
-  var epIndex  = parseInt(parts[1], 10);
-  var s        = getSeriesById(seriesId);
+  var epIndex = parseInt(parts[1], 10) - 1;
 
-  if (!s || isNaN(epIndex) || epIndex >= s.episodes.length) {
-    return res.json({ streams: [] });
-  }
+  var s = getSeriesById(seriesId);
+  if (!s || !s.episodes[epIndex]) return res.json({ streams: [] });
 
-  resolveStreamUrl(s.episodes[epIndex]).then(function(url) {
-    if (!url) return res.json({ streams: [] });
+  var episode = s.episodes[epIndex];
+
+  resolveStreamUrl(episode).then(function(finalUrl) {
     res.json({
       streams: [{
-        url: url,
-        name: s.channelName,
-        title: s.episodes[epIndex].title,
+        title: s.name + ' - ' + episode.title,
+        url: finalUrl,
         behaviorHints: {
-          notWebReady: false,
+          notDraft: true,
+          requestWhitelist: ['Origin', 'Referer'],
           proxyHeaders: {
-            request: {
+            'request': {
               'Origin': 'https://www.startv.com.tr',
               'Referer': 'https://www.startv.com.tr/'
             }
@@ -147,18 +215,16 @@ app.get('/', function(req, res) {
     'h1{color:#e50}a{color:#4af}.btn{display:inline-block;margin:4px;padding:12px 24px;background:#e50;color:#fff;border-radius:8px;font-size:15px;text-decoration:none}',
     'ul{line-height:2}</style></head><body>',
     '<h1>🇹🇷 Türk Dizileri Addon</h1>',
-    '<a class="btn" href="stremio://' + req.get('host') + '/manifest.json">Stremio\'ya Ekle</a>',
-    '<a class="btn" href="nuvio://' + req.get('host') + '/manifest.json">Nuvio\'ya Ekle</a>',
+    '<a class=\"btn\" href=\"stremio://' + req.get('host') + '/manifest.json\">Stremio\'ya Ekle</a>',
+    '<a class=\"btn\" href=\"nuvio://' + req.get('host') + '/manifest.json\">Nuvio\'ya Ekle</a>',
     '<h2>Kataloglar</h2><ul>',
-    Object.keys(CHANNELS).map(function(k) {
-      return '<li><strong>' + CHANNELS[k].name + '</strong> — ' + getSeriesByChannel(k).length + ' dizi</li>';
+    Object.keys(CATALOG_MAP).map(function(k) {
+      return '<li><a href="/catalog/series/' + k + '.json">' + MANIFEST.catalogs.find(c => c.id === k).name + '</a></li>';
     }).join(''),
-    '</ul>',
-    '<p style="color:#888;font-size:13px">Manifest: <a href="/manifest.json">' + host + '/manifest.json</a></p>',
-    '</body></html>'
+    '</ul></body></html>'
   ].join(''));
 });
 
 app.listen(PORT, function() {
-  console.log('🇹🇷 Türk Dizileri Addon çalışıyor: http://localhost:' + PORT);
+  console.log('Addon server running on port ' + PORT);
 });
