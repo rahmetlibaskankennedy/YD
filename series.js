@@ -60,6 +60,7 @@ const SERIES = [
     year: 2021,
     description: 'Geleneksel bir ailenin modern dünyayla çatışmasını anlatan aile komedisi.',
     tmdbId: null,
+    posterUrl: 'https://www.startv.com.tr/uploads/2021/09/turk-mali-aile-komedisi.jpg',
     episodes: [
       { title: 'Bölüm 1', streamPath: 'turkmali/turkmali1bipsiz', fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/turkmali/turkmali1bipsiz/chunklist.m3u8?st=0spFxuPpbR-T8Pf3IEcsxg&e=1779828665&r=1' },
       { title: 'Bölüm 2', streamPath: 'turkmali/turkmali2_hgdf',  fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/turkmali/turkmali2_hgdf/chunklist.m3u8?st=nUb3vnKpz-r9e44lRldg_g&e=1779828678&r=1' },
@@ -101,6 +102,7 @@ const SERIES = [
     year: 2023,
     description: 'Kaderlerinin kesiştiği iki insanın beklenmedik aşk hikayesi.',
     tmdbId: null,
+    posterUrl: 'https://www.kanald.com.tr/uploads/program/cover/gulumse-kaderine.jpg',
     episodes: []
   },
 
@@ -133,6 +135,7 @@ const SERIES = [
     year: 2014,
     description: 'Türk aile geleneklerini ve gelin-kaynana ilişkilerini işleyen eğlenceli program.',
     tmdbId: null,
+    posterUrl: 'https://www.atv.com.tr/uploads/program/cover/gelin-evi.jpg',
     episodes: []
   },
 
