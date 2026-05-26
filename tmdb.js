@@ -80,6 +80,9 @@ function fetchPosterBySearch(name, year, cb) {
 function getPosterUrl(series, cb) {
   function toUrl(p) { return p ? TMDB_IMG + p : null; }
 
+  // Direkt poster URL tanımlanmışsa TMDB'ye gitme
+  if (series.posterUrl) return cb(series.posterUrl);
+
   if (series.tmdbId) {
     fetchPosterById(series.tmdbId, function(err, p) {
       cb(toUrl(p));
