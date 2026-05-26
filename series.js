@@ -30,7 +30,7 @@ const SERIES = [
     year: 2017,
     description: 'Başarılı bir avukat olan Barış ile hayat dolu taksi şoförü Aslı\'nın yollarının kesişme hikayesi.',
     poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Atesbocegi',
-    tmdbId: 72635, // TMDB ID düzeltildi, dinamik poster doğrudan çekilecek
+    tmdbId: 72635,
     episodes: [
       { title: 'Bölüm 1', streamPath: 'atesbocegi/atesbocegi1_tek', fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/atesbocegi/atesbocegi1_tek/chunklist.m3u8?st=gFVfh6jFlJRt2BiY32T--Q&e=1779828406' },
       { title: 'Bölüm 2', streamPath: 'atesbocegi/atesbocegi2_tek', fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/atesbocegi/atesbocegi2_tek/chunklist.m3u8?st=hFVfh6jFlJRt2BiY32T--Q&e=1779828406' }
@@ -45,7 +45,6 @@ const SERIES = [
     description: 'Kuzu ailesinin modern hayata ayak uydurma çabaları ve komik maceraları.',
     poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Turk+Mali',
     tmdbId: null,
-    tmdbQuery: 'Türk Malı', // TMDB araması için Türkçe karakter desteği eklendi
     episodes: [
       { title: 'Bölüm 1', streamPath: 'turkmali/turkmali1_tek', fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/turkmali/turkmali1_tek/chunklist.m3u8?st=iFVfh6jFlJRt2BiY32T--Q&e=1779828406' }
     ]
@@ -60,7 +59,7 @@ const SERIES = [
     year: 2022,
     description: 'Farklı kültürlere sahip iki ailenin çocuklarının evlenmesiyle başlayan olaylar.',
     poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Kizilcik+Serbeti',
-    tmdbId: 213715, // TMDB ID eklendi
+    tmdbId: 213715,
     episodes: []
   },
   {
@@ -71,7 +70,7 @@ const SERIES = [
     year: 2022,
     description: 'Gaziantepli koruyucu bir ailenin sorumsuz oğullarını evlendirmesiyle gelişen olaylar.',
     poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Yali+Capkini',
-    tmdbId: 211244, // TMDB ID eklendi
+    tmdbId: 211244,
     episodes: []
   },
 
@@ -84,7 +83,7 @@ const SERIES = [
     year: 2019,
     description: 'Osman Bey\'in Osmanlı İmparatorluğu\'nu kurma mücadelesi.',
     poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Kurulus+Osman',
-    tmdbId: 96102, // TMDB ID eklendi
+    tmdbId: 96102,
     episodes: []
   },
 
@@ -97,7 +96,7 @@ const SERIES = [
     year: 2021,
     description: 'Bir cinayet vakasıyla yolları kesişen bir savcı ve bir avukatın hikayesi.',
     poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Yargi',
-    tmdbId: 133709, // TMDB ID eklendi
+    tmdbId: 133709,
     episodes: []
   },
 
@@ -110,7 +109,7 @@ const SERIES = [
     year: 2019,
     description: 'Savant sendromu olan otizmli bir cerrahi asistanın taşrada başlayan ve özel bir hastanede devam eden hikayesi.',
     poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Mucize+Doktor',
-    tmdbId: 93259, // TMDB ID eklendi
+    tmdbId: 93259,
     episodes: []
   },
 
@@ -123,7 +122,7 @@ const SERIES = [
     year: 2014,
     description: '13. yüzyılda Ertuğrul Gazi\'nin tapınak şövalyeleri ve Moğollara karşı verdiği mücadele.',
     poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Dirilis+Ertugrul',
-    tmdbId: 62002, // TMDB ID eklendi
+    tmdbId: 62002,
     episodes: []
   },
   {
@@ -134,7 +133,7 @@ const SERIES = [
     year: 2020,
     description: 'Anadolu\'nun küçük bir kasabasında, farklı insanların yaşam hikayelerini sıcak bir dille anlatan dizi.',
     poster: 'https://placehold.co/300x450/1a1a2e/ffffff?text=Gonul+Dagi',
-    tmdbId: 112093, // TMDB ID eklendi
+    tmdbId: 112093,
     episodes: []
   },
 ];
