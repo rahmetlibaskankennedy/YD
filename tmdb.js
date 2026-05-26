@@ -1,57 +1,94 @@
 'use strict';
 
-const fetch = require('node-fetch');
+var https = require('https');
 
-const TMDB_KEY  = process.env.TMDB_API_KEY || '4ef0d7355d9ffb5151e987764708ce96';
-const TMDB_BASE = 'https://api.themoviedb.org/3';
-const TMDB_IMG  = 'https://image.tmdb.org/t/p/w500';
+var TMDB_KEY = process.env.TMDB_API_KEY || '8265bd1679663a7ea12ac168da84d2e8';
+var TMDB_IMG = 'https://image.tmdb.org/t/p/w500';
 
-// Bellekte poster cache — process restart'a kadar yaşar, Render'da yeterli
-const posterCache = {};
+// poster_path cache: tmdbId (veya "q:name:year") → poster_path string | null
+var posterCache = {};
 
-// TMDB'den poster çek
-function fetchPosterByTmdbId(tmdbId) {
-  if (posterCache[tmdbId]) return Promise.resolve(posterCache[tmdbId]);
+// ── TMDB HTTPS yardımcısı ─────────────────────────────────────────────
+function tmdbGet(path, cb) {
+  var url = 'https://api.themoviedb.org' + path +
+    (path.indexOf('?') >= 0 ? '&' : '?') + 'api_key=' + TMDB_KEY;
 
-  return fetch(TMDB_BASE + '/tv/' + tmdbId + '?api_key=' + TMDB_KEY + '&language=tr-TR')
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      var poster = data.poster_path ? TMDB_IMG + data.poster_path : null;
-      if (poster) posterCache[tmdbId] = poster;
-      return poster;
-    })
-    .catch(function() { return null; });
+  var req = https.get(url, {
+    headers: { 'Accept': 'application/json', 'User-Agent': 'TurkDiziAddon/1.3' }
+  }, function(res) {
+    var raw = '';
+    res.on('data', function(c) { raw += c; });
+    res.on('end', function() {
+      try { cb(null, JSON.parse(raw)); }
+      catch(e) { cb(e); }
+    });
+  });
+  req.on('error', cb);
+  req.setTimeout(6000, function() { req.destroy(); cb(new Error('timeout')); });
 }
 
-// TMDB'de ara, ilk sonucun posterini getir
-function fetchPosterByQuery(query) {
-  var cacheKey = 'q:' + query;
-  if (posterCache[cacheKey]) return Promise.resolve(posterCache[cacheKey]);
+// ── 1. tmdbId ile direkt çek ──────────────────────────────────────────
+function fetchPosterById(tmdbId, cb) {
+  var key = String(tmdbId);
+  if (posterCache[key] !== undefined) return cb(null, posterCache[key]);
 
-  var url = TMDB_BASE + '/search/tv?api_key=' + TMDB_KEY + '&query=' + encodeURIComponent(query) + '&language=tr-TR';
-  return fetch(url)
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      var results = data.results || [];
-      var poster = null;
-      for (var i = 0; i < results.length; i++) {
-        if (results[i].poster_path) {
-          poster = TMDB_IMG + results[i].poster_path;
-          break;
-        }
+  tmdbGet('/3/tv/' + tmdbId + '?language=tr-TR', function(err, data) {
+    if (err || !data) { posterCache[key] = null; return cb(null, null); }
+    var p = data.poster_path || null;
+    posterCache[key] = p;
+    cb(null, p);
+  });
+}
+
+// ── 2. İsim + yıl ile ara, en iyi eşleşmenin posterini getir ─────────
+function fetchPosterBySearch(name, year, cb) {
+  var key = 'q:' + name + ':' + year;
+  if (posterCache[key] !== undefined) return cb(null, posterCache[key]);
+
+  var path = '/3/search/tv?query=' + encodeURIComponent(name) +
+    '&language=tr-TR&first_air_date_year=' + year;
+
+  tmdbGet(path, function(err, data) {
+    if (err || !data || !data.results) { posterCache[key] = null; return cb(null, null); }
+
+    var results = data.results;
+    var poster = null;
+
+    // Önce yıl eşleşen ve Türkçe orijinal dil olan sonucu tercih et
+    for (var i = 0; i < results.length; i++) {
+      var r = results[i];
+      if (r.poster_path && r.original_language === 'tr') {
+        poster = r.poster_path;
+        break;
       }
-      if (poster) posterCache[cacheKey] = poster;
-      return poster;
-    })
-    .catch(function() { return null; });
+    }
+    // Bulamazsa ilk poster_path'li sonucu al
+    if (!poster) {
+      for (var j = 0; j < results.length; j++) {
+        if (results[j].poster_path) { poster = results[j].poster_path; break; }
+      }
+    }
+
+    posterCache[key] = poster;
+    cb(null, poster);
+  });
 }
 
-// Dizi için poster getir (tmdbId varsa direkt, yoksa query ile ara)
-function getPoster(series) {
+// ── Ana fonksiyon: dizi objesinden poster URL döner ───────────────────
+// tmdbId varsa direkt çeker, yoksa name+year ile arar.
+// Her iki durumda da tam TMDB görsel URL'si döner, hata varsa null.
+function getPosterUrl(series, cb) {
+  function toUrl(p) { return p ? TMDB_IMG + p : null; }
+
   if (series.tmdbId) {
-    return fetchPosterByTmdbId(series.tmdbId);
+    fetchPosterById(series.tmdbId, function(err, p) {
+      cb(toUrl(p));
+    });
+  } else {
+    fetchPosterBySearch(series.name, series.year, function(err, p) {
+      cb(toUrl(p));
+    });
   }
-  return fetchPosterByQuery(series.tmdbQuery);
 }
 
-module.exports = { getPoster };
+module.exports = { getPosterUrl };
