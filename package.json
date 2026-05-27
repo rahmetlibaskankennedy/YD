@@ -1,7 +1,7 @@
 {
   "name": "turkish-dizi-addon",
-  "version": "1.0.0",
-  "description": "Türk Dizileri - Nuvio/Stremio Addon",
+  "version": "1.9.23",
+  "description": "DiziTürk - Nuvio/Stremio İçin Yerli Diziler",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
