@@ -15,7 +15,7 @@ var getPosterUrl       = tmdb_.getPosterUrl;
 var app  = express();
 var PORT = process.env.PORT || 3000;
 
-// ── CORS ──────────────────────────────────────────────────────────────
+// ── CORS ─────────────────────────────────────────────────────────────
 app.use(function(req, res, next) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', '*');
@@ -25,20 +25,20 @@ app.use(function(req, res, next) {
 // ── MANIFEST ─────────────────────────────────────────────────────────
 var MANIFEST = {
   id: 'community.turkishdiziaddon',
-  version: '1.2.0',
+  version: '2.0.0',
   name: '🇹🇷 Türk Dizileri',
-  description: 'Star TV, Kanal D, ATV, Show TV, FOX TV ve TRT 1 dizileri',
+  description: 'Star TV ve Show TV dizi arşivi — 200+ dizi, binlerce bölüm',
   logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Flag_of_Turkey.svg/200px-Flag_of_Turkey.svg.png',
   resources: ['catalog', 'meta', 'stream'],
   types: ['series'],
   idPrefixes: ['startv_', 'kanald_', 'atv_', 'showtv_', 'foxtv_', 'trt1_'],
   catalogs: [
-    { type: 'series', id: 'startv_catalog', name: 'Star TV Dizileri',  extra: [{ name: 'skip', isRequired: false }] },
-    { type: 'series', id: 'kanald_catalog', name: 'Kanal D Dizileri',  extra: [{ name: 'skip', isRequired: false }] },
-    { type: 'series', id: 'atv_catalog',    name: 'ATV Dizileri',      extra: [{ name: 'skip', isRequired: false }] },
-    { type: 'series', id: 'showtv_catalog', name: 'Show TV Dizileri',  extra: [{ name: 'skip', isRequired: false }] },
-    { type: 'series', id: 'foxtv_catalog',  name: 'FOX TV Dizileri',   extra: [{ name: 'skip', isRequired: false }] },
-    { type: 'series', id: 'trt1_catalog',   name: 'TRT 1 Dizileri',    extra: [{ name: 'skip', isRequired: false }] },
+    { type: 'series', id: 'startv_catalog', name: 'Star TV Dizileri', extra: [{ name: 'skip', isRequired: false }] },
+    { type: 'series', id: 'showtv_catalog', name: 'Show TV Dizileri', extra: [{ name: 'skip', isRequired: false }] },
+    { type: 'series', id: 'kanald_catalog', name: 'Kanal D Dizileri', extra: [{ name: 'skip', isRequired: false }] },
+    { type: 'series', id: 'atv_catalog',    name: 'ATV Dizileri',     extra: [{ name: 'skip', isRequired: false }] },
+    { type: 'series', id: 'foxtv_catalog',  name: 'FOX TV Dizileri',  extra: [{ name: 'skip', isRequired: false }] },
+    { type: 'series', id: 'trt1_catalog',   name: 'TRT 1 Dizileri',   extra: [{ name: 'skip', isRequired: false }] },
   ]
 };
 
@@ -47,22 +47,17 @@ app.get('/manifest.json', function(req, res) {
 });
 
 // ── POSTER SİSTEMİ ────────────────────────────────────────────────────
-// tmdb.js üzerinden çalışır:
-//   - tmdbId varsa → direkt TMDB TV endpoint
-//   - tmdbId yoksa → name + year ile Search API (Türkçe, tr original_language öncelikli)
-// Her iki durumda TMDB poster bulunursa redirect, bulunamazsa SVG fallback.
+var CHANNEL_COLORS = {
+  'Star TV':  { bg: '#c8000a', accent: '#ff2233' },
+  'Kanal D':  { bg: '#0057a8', accent: '#1a7fd4' },
+  'ATV':      { bg: '#e05500', accent: '#ff7722' },
+  'Show TV':  { bg: '#7b1082', accent: '#b030bc' },
+  'FOX TV':   { bg: '#002060', accent: '#003da5' },
+  'TRT 1':    { bg: '#005227', accent: '#007a3d' },
+};
 
-// Kanal rengine göre SVG poster (TMDB'de bulunamazsa gösterilir)
 function makeSvgPoster(name, channelName) {
-  var colors = {
-    'Star TV':  { bg: '#c8000a', accent: '#ff2233' },
-    'Kanal D':  { bg: '#0057a8', accent: '#1a7fd4' },
-    'ATV':      { bg: '#e05500', accent: '#ff7722' },
-    'Show TV':  { bg: '#7b1082', accent: '#b030bc' },
-    'FOX TV':   { bg: '#002060', accent: '#003da5' },
-    'TRT 1':    { bg: '#005227', accent: '#007a3d' },
-  };
-  var c = colors[channelName] || { bg: '#1a1a2e', accent: '#3a3a5e' };
+  var c = CHANNEL_COLORS[channelName] || { bg: '#1a1a2e', accent: '#3a3a5e' };
 
   var words = name.split(' ');
   var lines = [];
@@ -82,7 +77,8 @@ function makeSvgPoster(name, channelName) {
       'text-anchor="middle" font-family="Arial Black,Arial,sans-serif" ' +
       'font-size="26" font-weight="900" fill="#ffffff" ' +
       'paint-order="stroke" stroke="#00000066" stroke-width="3">' +
-      line + '</text>';
+      line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+      '</text>';
   }).join('\n');
 
   return [
@@ -109,7 +105,6 @@ function makeSvgPoster(name, channelName) {
   ].join('\n');
 }
 
-// /poster/:seriesId.jpg
 app.get('/poster/:seriesId.jpg', function(req, res) {
   var s = getSeriesById(req.params.seriesId);
   if (!s) return res.status(404).end();
@@ -120,7 +115,6 @@ app.get('/poster/:seriesId.jpg', function(req, res) {
     return res.send(makeSvgPoster(s.name, s.channelName));
   }
 
-  // tmdb.js: tmdbId varsa direkt çeker, yoksa name+year ile arar
   getPosterUrl(s, function(url) {
     if (!url) return sendSvg();
     res.setHeader('Cache-Control', 'public, max-age=604800');
@@ -154,7 +148,7 @@ app.get('/catalog/:type/:id.json', function(req, res) {
       name: s.name,
       year: s.year,
       poster: posterUrl(s, host),
-      description: s.description,
+      description: s.description || '',
       genres: [s.channelName],
     };
   });
@@ -171,7 +165,7 @@ app.get('/meta/:type/:id.json', function(req, res) {
     return {
       id: s.id + ':' + idx,
       title: ep.title,
-      season: 1,
+      season: ep.season || 1,
       episode: idx + 1,
       released: new Date(s.year, 0, 1 + idx).toISOString(),
     };
@@ -184,7 +178,7 @@ app.get('/meta/:type/:id.json', function(req, res) {
       name: s.name,
       year: s.year,
       poster: posterUrl(s, host),
-      description: s.description,
+      description: s.description || '',
       genres: [s.channelName],
       videos: videos,
     }
@@ -198,28 +192,35 @@ app.get('/stream/:type/:id.json', function(req, res) {
   var epIndex  = parseInt(parts[1], 10);
   var s        = getSeriesById(seriesId);
 
-  if (!s || isNaN(epIndex) || epIndex >= s.episodes.length) {
+  if (!s || isNaN(epIndex) || epIndex < 0 || epIndex >= s.episodes.length) {
     return res.json({ streams: [] });
   }
 
-  resolveStreamUrl(s.episodes[epIndex]).then(function(url) {
+  var ep = s.episodes[epIndex];
+
+  resolveStreamUrl(ep).then(function(url) {
     if (!url) return res.json({ streams: [] });
-    res.json({
-      streams: [{
-        url: url,
-        name: s.channelName,
-        title: s.episodes[epIndex].title,
-        behaviorHints: {
-          notWebReady: false,
-          proxyHeaders: {
-            request: {
-              'Origin': 'https://www.startv.com.tr',
-              'Referer': 'https://www.startv.com.tr/'
-            }
+
+    var stream = {
+      url: url,
+      name: s.channelName,
+      title: ep.title,
+    };
+
+    // MNCDN linkler için Origin/Referer header gerekebilir
+    if (url.indexOf('mncdn.com') >= 0) {
+      stream.behaviorHints = {
+        notWebReady: false,
+        proxyHeaders: {
+          request: {
+            'Origin':  'https://www.startv.com.tr',
+            'Referer': 'https://www.startv.com.tr/'
           }
         }
-      }]
-    });
+      };
+    }
+
+    res.json({ streams: [stream] });
   }).catch(function() {
     res.json({ streams: [] });
   });
@@ -228,25 +229,32 @@ app.get('/stream/:type/:id.json', function(req, res) {
 // ── ANASAYFA ─────────────────────────────────────────────────────────
 app.get('/', function(req, res) {
   var host = req.protocol + '://' + req.get('host');
+  var channelRows = Object.keys(CHANNELS).map(function(k) {
+    var count = getSeriesByChannel(k).length;
+    var epCount = getSeriesByChannel(k).reduce(function(acc, s) { return acc + s.episodes.length; }, 0);
+    return '<li><strong>' + CHANNELS[k].name + '</strong> — ' + count + ' dizi, ' + epCount + ' bölüm</li>';
+  }).join('');
+
   res.send([
     '<!DOCTYPE html><html><head><meta charset="utf-8">',
     '<title>🇹🇷 Türk Dizileri Addon</title>',
-    '<style>body{font-family:sans-serif;max-width:700px;margin:40px auto;padding:0 20px;background:#111;color:#eee}',
-    'h1{color:#e50}a{color:#4af}.btn{display:inline-block;margin:4px;padding:12px 24px;background:#e50;color:#fff;border-radius:8px;font-size:15px;text-decoration:none}',
-    'ul{line-height:2}</style></head><body>',
+    '<style>',
+    'body{font-family:sans-serif;max-width:700px;margin:40px auto;padding:0 20px;background:#111;color:#eee}',
+    'h1{color:#e50}a{color:#4af}',
+    '.btn{display:inline-block;margin:4px;padding:12px 24px;background:#e50;color:#fff;border-radius:8px;font-size:15px;text-decoration:none}',
+    'ul{line-height:2.2}',
+    '</style></head><body>',
     '<h1>🇹🇷 Türk Dizileri Addon</h1>',
     '<a class="btn" href="stremio://' + req.get('host') + '/manifest.json">Stremio\'ya Ekle</a>',
     '<a class="btn" href="nuvio://' + req.get('host') + '/manifest.json">Nuvio\'ya Ekle</a>',
-    '<h2>Kataloglar</h2><ul>',
-    Object.keys(CHANNELS).map(function(k) {
-      return '<li><strong>' + CHANNELS[k].name + '</strong> — ' + getSeriesByChannel(k).length + ' dizi</li>';
-    }).join(''),
-    '</ul>',
+    '<h2>Kataloglar</h2><ul>' + channelRows + '</ul>',
     '<p style="color:#888;font-size:13px">Manifest: <a href="/manifest.json">' + host + '/manifest.json</a></p>',
     '</body></html>'
   ].join(''));
 });
 
 app.listen(PORT, function() {
-  console.log('🇹🇷 Türk Dizileri Addon çalışıyor: http://localhost:' + PORT);
+  console.log('🇹🇷 Türk Dizileri Addon v2.0 — http://localhost:' + PORT);
+  var total = SERIES.reduce(function(a, s) { return a + s.episodes.length; }, 0);
+  console.log('Toplam: ' + SERIES.length + ' dizi, ' + total + ' bölüm');
 });
