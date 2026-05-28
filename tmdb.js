@@ -5,8 +5,10 @@ var https = require('https');
 var TMDB_KEY = process.env.TMDB_API_KEY || '8265bd1679663a7ea12ac168da84d2e8';
 var TMDB_IMG = 'https://image.tmdb.org/t/p/w500';
 
+// poster_path cache: tmdbId (veya "q:name:year") → poster_path string | null
 var posterCache = {};
 
+// ── TMDB HTTPS Yardımcısı ─────────────────────────────────────────────
 function tmdbGet(path, cb) {
   var url = 'https://api.themoviedb.org' + path +
     (path.indexOf('?') >= 0 ? '&' : '?') + 'api_key=' + TMDB_KEY;
@@ -25,26 +27,35 @@ function tmdbGet(path, cb) {
   req.setTimeout(6000, function() { req.destroy(); cb(new Error('timeout')); });
 }
 
-// ÇÖZÜM 1: ID ile çekerken language=tr-TR'yi kaldırdık. TMDB ana veriyi getirecek.
+// ── 1. tmdbId ile Direkt Çek (Türkçe Metin + Global Afiş) ──────────────
 function fetchPosterById(tmdbId, cb) {
   var key = String(tmdbId);
   if (posterCache[key] !== undefined) return cb(null, posterCache[key]);
 
-  tmdbGet('/3/tv/' + tmdbId, function(err, data) {
+  // append_to_response=images sayesinde Türkçe afiş olmasa bile dilsiz/global afişleri de tek istekte çekeriz
+  tmdbGet('/3/tv/' + tmdbId + '?language=tr-TR&append_to_response=images', function(err, data) {
     if (err || !data) { posterCache[key] = null; return cb(null, null); }
-    var p = data.poster_path || null;
+    
+    // Öncelik 1: Türkçe lokalizasyondaki poster_path
+    var p = data.poster_path;
+    
+    // Öncelik 2: Eğer Türkçe veri boşsa, ek istek paketinden (images) gelen ilk global afişi al
+    if (!p && data.images && data.images.posters && data.images.posters.length > 0) {
+      p = data.images.posters[0].file_path;
+    }
+    
     posterCache[key] = p;
     cb(null, p);
   });
 }
 
-// ÇÖZÜM 2: Aramadan first_air_date_year ve language=tr-TR şartını esnettik
+// ── 2. İsim ile Ara, En İyi Eşleşmenin Posterini Getir ────────────────
 function fetchPosterBySearch(name, year, cb) {
   var key = 'q:' + name + ':' + year;
   if (posterCache[key] !== undefined) return cb(null, posterCache[key]);
 
-  // Yıl filtresini URL'den kaldırdık, gelen sonuçlar içinden akıllıca seçeceğiz
-  var path = '/3/search/tv?query=' + encodeURIComponent(name);
+  // Arama dilini tr-TR yapıyoruz ki Çukur, Babil gibi dizilerin isimleri Türkçe gelsin
+  var path = '/3/search/tv?query=' + encodeURIComponent(name) + '&language=tr-TR';
 
   tmdbGet(path, function(err, data) {
     if (err || !data || !data.results || data.results.length === 0) { 
@@ -55,11 +66,21 @@ function fetchPosterBySearch(name, year, cb) {
     var results = data.results;
     var poster = null;
 
-    // 1. Öncelik: Hem ismi (veya orijinal ismi) eşleşen hem de posteri olan ilk sonucu al
+    // Öncelik 1: Hem posteri olan hem de orijinal dili Türkçe ('tr') olan ilk sonucu ara
     for (var i = 0; i < results.length; i++) {
-      if (results[i].poster_path) {
+      if (results[i].poster_path && results[i].original_language === 'tr') {
         poster = results[i].poster_path;
         break;
+      }
+    }
+
+    // Öncelik 2: Yukarıdaki katı filtreye takıldıysa, dil fark etmeksizin poster barındıran ilk sonucu kap
+    if (!poster) {
+      for (var j = 0; j < results.length; j++) {
+        if (results[j].poster_path) { 
+          poster = results[j].poster_path; 
+          break; 
+        }
       }
     }
 
@@ -68,6 +89,7 @@ function fetchPosterBySearch(name, year, cb) {
   });
 }
 
+// ── Ana Fonksiyon: Dizi objesinden poster URL döner ───────────────────
 function getPosterUrl(series, cb) {
   function toUrl(p) { return p ? TMDB_IMG + p : null; }
 
@@ -84,11 +106,9 @@ function getPosterUrl(series, cb) {
   }
 }
 
-// ── ÇÖZÜM 3: TÜM DİZİLERİ CHECK EDEN YENİ FONKSİYON ───────────────────
-// Bu fonksiyonu eklentiyi başlatırken dizi listenizi vererek çağırabilirsiniz.
+// ── Toplu Check Fonksiyonu (Terminalden İzlemek İçin) ─────────────────
 function checkAllSeries(seriesList) {
   console.log(`[POSTER CHECK] Toplam ${seriesList.length} dizi kontrol ediliyor...`);
-  
   var index = 0;
   
   function next() {
@@ -105,8 +125,7 @@ function checkAllSeries(seriesList) {
         console.warn(`❌ [BAŞARISIZ] ${series.name} (ID: ${series.tmdbId || 'Yok'}, Yıl: ${series.year || 'Yok'}) için poster bulunamadı!`);
       }
       index++;
-      // TMDB API Rate Limit'e (istek sınırı) takılmamak için 200ms gecikmeyle sıradakine geçer
-      setTimeout(next, 200);
+      setTimeout(next, 200); // 200ms gecikme (Rate Limit koruması)
     });
   }
   
