@@ -135,7 +135,7 @@ const SERIES = [
     description: '',
     tmdbId: null,
     episodes: [
-      { title: 'Bölüm 1', streamPath: 'akrep/akrep_1_bolum', fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/akrep/akrep_1_bolum/chunklist.m3u8?st=YLcKEQY8ge6MkLOpH0DOZg&e=1779965529&r=2' },
+      { title: 'Bölüm 1', streamPath: 'akrep/akrep_1_bolum', fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/akrep/akrep_1_bolum/playlist.m3u8?st=MRqOC41z1YvMgSLGM7F9vQ&e=1780079966&r=2' },
       { title: 'Bölüm 2', streamPath: 'akrep/akrepbolum2_revize', fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/akrep/akrepbolum2_revize/chunklist.m3u8?st=LERSpggbQN5k8JcNqNxtMQ&e=1779965550&r=2' },
       { title: 'Bölüm 3', streamPath: 'akrep/akrepbolum3_revize', fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/akrep/akrepbolum3_revize/chunklist.m3u8?st=dtLvz1Nf3vZRiEqnftIsNQ&e=1779965557&r=2' },
       { title: 'Bölüm 4', streamPath: 'akrep/akrep4bolum', fallback: 'https://startv-p2.mncdn.com/delivery/Dizi/akrep/akrep4bolum/chunklist.m3u8?st=f-TlQphMPTUIvzLRPQI1FQ&e=1779965573&r=1' },
