@@ -2,7 +2,7 @@
 
 var express = require('express');
 var axios = require('axios'); // Star TV sitesine anlık gitmek için ekledik
-var series_ = require('./series'); // GitHub'ındaki series.js dosyasını okuyacak
+var series_ = require('./series'); // GitHub'ındaki series.js dosyasını okur
 var stream_ = require('./stream');
 var tmdb_   = require('./tmdb');
 
@@ -232,7 +232,7 @@ app.get('/meta/:type/:id.json', function(req, res) {
   });
 });
 
-// ── STREAM ───────────────────────────────────────────────────────────
+// ── STREAM (GARANTİLİ YENİ YAPI) ───────────────────────────────────────
 app.get('/stream/:type/:id.json', async function(req, res) {
   var parts    = req.params.id.split(':');
   var seriesId = parts[0];
@@ -245,10 +245,11 @@ app.get('/stream/:type/:id.json', async function(req, res) {
 
   var ep = s.episodes[epIndex];
 
-  // Star TV dizileri için anlık taze bilet çözücü devrede
-  if (s.channel === 'startv' && ep.streamPath) {
+  // MANİFESTE UYGUN KONTROL: ID startv_ ile başlıyorsa veya kanal startv ise canlı bilet çözücü çalışsın
+  if ((seriesId.indexOf('startv_') === 0 || s.channel === 'startv') && ep.streamPath) {
     var starWebUrl = getStarTvWebPageUrl(ep.streamPath);
     if (starWebUrl) {
+      console.log("[Stream] Star TV Canli Link Cozuluyor: " + starWebUrl);
       var liveUrl = await fetchLiveStarTvStream(starWebUrl);
       
       if (liveUrl) {
@@ -272,7 +273,7 @@ app.get('/stream/:type/:id.json', async function(req, res) {
     }
   }
 
-  // Show TV ve diğerleri normal akışında devam eder
+  // Show TV ve diğer kanallar için normal akış devam eder
   resolveStreamUrl(ep).then(function(url) {
     if (!url) return res.json({ streams: [] });
 
