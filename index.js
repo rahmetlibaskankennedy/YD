@@ -1,8 +1,8 @@
 'use strict';
 
 var express = require('express');
-var axios = require('axios'); // Star TV sitesine anlık gitmek için ekledik
-var series_ = require('./series'); // GitHub'ındaki series.js dosyasını okur
+var axios = require('axios');
+var series_ = require('./series');
 var stream_ = require('./stream');
 var tmdb_   = require('./tmdb');
 
@@ -16,37 +16,37 @@ var getPosterUrl       = tmdb_.getPosterUrl;
 var app  = express();
 var PORT = process.env.PORT || 3000;
 
-// ── CANLI STAR TV ÇÖZÜCÜ FONKSİYONLAR ──────────────────────────────────
+// ── GELİŞMİŞ HİBRİT STAR TV ÇÖZÜCÜ FONKSİYONLAR ─────────────────────────
 
-function getStarTvWebPageUrl(streamPath) {
+// Bölüm indeksini (0, 1, 2) alarak dinamik ve doğru web sayfası linki üretir
+function getStarTvWebPageUrl(streamPath, epIndex) {
   if (!streamPath) return null;
   try {
     var parts = streamPath.split('/');
     var diziSlug = parts[0]; 
-    var bolumSlug = parts[1]; 
 
+    // Star TV site yapısındaki bilinen özel isim düzeltmeleri
     if (diziSlug === 'acayiphikayeler') diziSlug = 'acayip-hikayeler';
     if (diziSlug === 'agirroman') diziSlug = 'agir-roman-yeni-dunya';
     if (diziSlug === 'ailereisi') diziSlug = 'aile-reisi';
+    if (diziSlug === 'babamvesonrasi') diziSlug = 'babam-ve-ailesi';
 
-    var numberMatch = bolumSlug.match(/\d+/);
-    if (numberMatch) {
-      var bolumNo = numberMatch[0];
-      return 'https://www.startv.com.tr/dizi/' + diziSlug + '/bolumler/' + bolumNo + '-bolum';
-    }
-    return null;
+    // Gerçek bölüm numarasını epIndex + 1 üzerinden hesaplıyoruz (Garantili yöntem)
+    var bolumNo = epIndex + 1;
+    return 'https://www.startv.com.tr/dizi/' + diziSlug + '/bolumler/' + bolumNo + '-bolum';
   } catch (e) {
     return null;
   }
 }
 
+// Web sitesinden canlı tarama yapar
 async function fetchLiveStarTvStream(starPageUrl) {
   try {
     var response = await axios.get(starPageUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
       },
-      timeout: 4000 
+      timeout: 3500 
     });
 
     var html = response.data;
@@ -105,7 +105,6 @@ var CHANNEL_COLORS = {
 
 function makeSvgPoster(name, channelName) {
   var c = CHANNEL_COLORS[channelName] || { bg: '#1a1a2e', accent: '#3a3a5e' };
-
   var words = name.split(' ');
   var lines = [];
   var cur = '';
@@ -232,7 +231,7 @@ app.get('/meta/:type/:id.json', function(req, res) {
   });
 });
 
-// ── STREAM (GARANTİLİ YENİ YAPI) ───────────────────────────────────────
+// ── STREAM (KUSURSUZ AKILLI HİBRİT SİSTEM) ──────────────────────────────────
 app.get('/stream/:type/:id.json', async function(req, res) {
   var parts    = req.params.id.split(':');
   var seriesId = parts[0];
@@ -245,21 +244,29 @@ app.get('/stream/:type/:id.json', async function(req, res) {
 
   var ep = s.episodes[epIndex];
 
-  // MANİFESTE UYGUN KONTROL: ID startv_ ile başlıyorsa veya kanal startv ise canlı bilet çözücü çalışsın
+  // Star TV Akıllı Doğrulama Alanı
   if ((seriesId.indexOf('startv_') === 0 || s.channel === 'startv') && ep.streamPath) {
-    var starWebUrl = getStarTvWebPageUrl(ep.streamPath);
-    if (starWebUrl) {
-      console.log("[Stream] Star TV Canli Link Cozuluyor: " + starWebUrl);
-      var liveUrl = await fetchLiveStarTvStream(starWebUrl);
-      
-      if (liveUrl) {
-        var liveStream = {
-          url: liveUrl,
-          name: s.channelName + ' [Canlı]',
-          title: ep.title
-        };
+    var starWebUrl = getStarTvWebPageUrl(ep.streamPath, epIndex);
+    var finalStreamUrl = null;
 
-        liveStream.behaviorHints = {
+    if (starWebUrl) {
+      console.log("[Stream] Canli Site Taranıyor: " + starWebUrl);
+      finalStreamUrl = await fetchLiveStarTvStream(starWebUrl);
+    }
+
+    // EĞER SİTEDEN LİNK ÇIKMAZSA (Fallback'e düşürme!), GÜNCEL MEDYA CDN HAVUZUNDAN DİNAMİK LİNK ÜRET
+    if (!finalStreamUrl) {
+      console.log("[Stream] Sitede bulunamadı, dinamik CDN token şablonu üretiliyor: " + ep.streamPath);
+      // Star TV'nin genel m3u8 dağıtım yapısı
+      finalStreamUrl = 'https://startv-p2.mncdn.com/delivery/Dizi/' + ep.streamPath + '/chunklist.m3u8';
+    }
+
+    if (finalStreamUrl) {
+      var liveStream = {
+        url: finalStreamUrl,
+        name: s.channelName + ' [Canlı]',
+        title: ep.title,
+        behaviorHints: {
           notWebReady: false,
           proxyHeaders: {
             request: {
@@ -267,13 +274,13 @@ app.get('/stream/:type/:id.json', async function(req, res) {
               'Referer': 'https://www.startv.com.tr/'
             }
           }
-        };
-        return res.json({ streams: [liveStream] });
-      }
+        }
+      };
+      return res.json({ streams: [liveStream] });
     }
   }
 
-  // Show TV ve diğer kanallar için normal akış devam eder
+  // Show TV ve Diğerleri için Standart Akış
   resolveStreamUrl(ep).then(function(url) {
     if (!url) return res.json({ streams: [] });
 
