@@ -275,3 +275,64 @@ app.get('/stream/:type/:id.json', async function(req, res) {
       }
     }
   }
+
+  // 2. ADIM: Star TV değilse (veya canlı link başarısız olduysa) eski sistemle Show TV vb. çalışmaya devam eder
+  resolveStreamUrl(ep).then(function(url) {
+    if (!url) return res.json({ streams: [] });
+
+    var stream = {
+      url: url,
+      name: s.channelName,
+      title: ep.title,
+    };
+
+    if (url.indexOf('mncdn.com') >= 0) {
+      stream.behaviorHints = {
+        notWebReady: false,
+        proxyHeaders: {
+          request: {
+            'Origin':  'https://www.startv.com.tr',
+            'Referer': 'https://www.startv.com.tr/'
+          }
+        }
+      };
+    }
+
+    res.json({ streams: [stream] });
+  }).catch(function() {
+    res.json({ streams: [] });
+  });
+});
+
+// ── ANASAYFA ─────────────────────────────────────────────────────────
+app.get('/', function(req, res) {
+  var host = req.protocol + '://' + req.get('host');
+  var channelRows = Object.keys(CHANNELS).map(function(k) {
+    var count = getSeriesByChannel(k).length;
+    var epCount = getSeriesByChannel(k).reduce(function(acc, s) { return acc + s.episodes.length; }, 0);
+    return '<li><strong>' + CHANNELS[k].name + '</strong> — ' + count + ' dizi, ' + epCount + ' bölüm</li>';
+  }).join('');
+
+  res.send([
+    '<!DOCTYPE html><html><head><meta charset="utf-8">',
+    '<title>🇹🇷 Türk Dizileri Addon</title>',
+    '<style>',
+    'body{font-family:sans-serif;max-width:700px;margin:40px auto;padding:0 20px;background:#111;color:#eee}',
+    'h1{color:#e50}a{color:#4af}',
+    '.btn{display:inline-block;margin:4px;padding:12px 24px;background:#e50;color:#fff;border-radius:8px;font-size:15px;text-decoration:none}',
+    'ul{line-height:2.2}',
+    '</style></head><body>',
+    '<h1>🇹🇷 Türk Dizileri Addon</h1>',
+    '<a class="btn" href="stremio://' + req.get('host') + '/manifest.json">Stremio\'ya Ekle</a>',
+    '<a class="btn" href="nuvio://' + req.get('host') + '/manifest.json">Nuvio\'ya Ekle</a>',
+    '<h2>Kataloglar</h2><ul>' + channelRows + '</ul>',
+    '<p style="color:#888;font-size:13px">Manifest: <a href="/manifest.json">' + host + '/manifest.json</a></p>',
+    '</body></html>'
+  ].join(''));
+});
+
+app.listen(PORT, function() {
+  console.log('🇹🇷 Türk Dizileri Addon v2.0 — http://localhost:' + PORT);
+  var total = SERIES.reduce(function(a, s) { return a + s.episodes.length; }, 0);
+  console.log('Toplam: ' + SERIES.length + ' dizi, ' + total + ' bölüm');
+});
