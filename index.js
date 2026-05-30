@@ -2,7 +2,7 @@
 
 var express = require('express');
 var axios = require('axios'); // Star TV sitesine anlık gitmek için ekledik
-var series_ = require('./series');
+var series_ = require('./series'); // GitHub'ındaki series.js dosyasını okuyacak
 var stream_ = require('./stream');
 var tmdb_   = require('./tmdb');
 
@@ -18,7 +18,6 @@ var PORT = process.env.PORT || 3000;
 
 // ── CANLI STAR TV ÇÖZÜCÜ FONKSİYONLAR ──────────────────────────────────
 
-// Star TV'nin eski m3u8 adresinden web sitesindeki güncel sayfa linkini tahmin eder
 function getStarTvWebPageUrl(streamPath) {
   if (!streamPath) return null;
   try {
@@ -26,7 +25,6 @@ function getStarTvWebPageUrl(streamPath) {
     var diziSlug = parts[0]; 
     var bolumSlug = parts[1]; 
 
-    // Star TV site yapısındaki özel isim düzeltmeleri
     if (diziSlug === 'acayiphikayeler') diziSlug = 'acayip-hikayeler';
     if (diziSlug === 'agirroman') diziSlug = 'agir-roman-yeni-dunya';
     if (diziSlug === 'ailereisi') diziSlug = 'aile-reisi';
@@ -42,14 +40,13 @@ function getStarTvWebPageUrl(streamPath) {
   }
 }
 
-// Star TV sitesine anlık gidip o saniyelik taze m3u8 linkini söker
 async function fetchLiveStarTvStream(starPageUrl) {
   try {
     var response = await axios.get(starPageUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
       },
-      timeout: 4000 // Sunucu 4 saniye içinde cevap vermezse iptal et
+      timeout: 4000 
     });
 
     var html = response.data;
@@ -235,7 +232,7 @@ app.get('/meta/:type/:id.json', function(req, res) {
   });
 });
 
-// ── STREAM (DÜZENLENEN KISIM) ───────────────────────────────────────────
+// ── STREAM ───────────────────────────────────────────────────────────
 app.get('/stream/:type/:id.json', async function(req, res) {
   var parts    = req.params.id.split(':');
   var seriesId = parts[0];
@@ -248,7 +245,7 @@ app.get('/stream/:type/:id.json', async function(req, res) {
 
   var ep = s.episodes[epIndex];
 
-  // 1. ADIM: Eğer bu bir Star TV dizisiyse Canlı Çözücüyü devreye sok
+  // Star TV dizileri için anlık taze bilet çözücü devrede
   if (s.channel === 'startv' && ep.streamPath) {
     var starWebUrl = getStarTvWebPageUrl(ep.streamPath);
     if (starWebUrl) {
@@ -261,7 +258,6 @@ app.get('/stream/:type/:id.json', async function(req, res) {
           title: ep.title
         };
 
-        // Gerekli proxy header'larını ekliyoruz
         liveStream.behaviorHints = {
           notWebReady: false,
           proxyHeaders: {
@@ -276,7 +272,7 @@ app.get('/stream/:type/:id.json', async function(req, res) {
     }
   }
 
-  // 2. ADIM: Star TV değilse (veya canlı link başarısız olduysa) eski sistemle Show TV vb. çalışmaya devam eder
+  // Show TV ve diğerleri normal akışında devam eder
   resolveStreamUrl(ep).then(function(url) {
     if (!url) return res.json({ streams: [] });
 
