@@ -1,6 +1,7 @@
 'use strict';
 
 var express = require('express');
+var axios = require('axios'); // Star TV sitesine anlık gitmek için ekledik
 var series_ = require('./series');
 var stream_ = require('./stream');
 var tmdb_   = require('./tmdb');
@@ -14,6 +15,55 @@ var getPosterUrl       = tmdb_.getPosterUrl;
 
 var app  = express();
 var PORT = process.env.PORT || 3000;
+
+// ── CANLI STAR TV ÇÖZÜCÜ FONKSİYONLAR ──────────────────────────────────
+
+// Star TV'nin eski m3u8 adresinden web sitesindeki güncel sayfa linkini tahmin eder
+function getStarTvWebPageUrl(streamPath) {
+  if (!streamPath) return null;
+  try {
+    var parts = streamPath.split('/');
+    var diziSlug = parts[0]; 
+    var bolumSlug = parts[1]; 
+
+    // Star TV site yapısındaki özel isim düzeltmeleri
+    if (diziSlug === 'acayiphikayeler') diziSlug = 'acayip-hikayeler';
+    if (diziSlug === 'agirroman') diziSlug = 'agir-roman-yeni-dunya';
+    if (diziSlug === 'ailereisi') diziSlug = 'aile-reisi';
+
+    var numberMatch = bolumSlug.match(/\d+/);
+    if (numberMatch) {
+      var bolumNo = numberMatch[0];
+      return 'https://www.startv.com.tr/dizi/' + diziSlug + '/bolumler/' + bolumNo + '-bolum';
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Star TV sitesine anlık gidip o saniyelik taze m3u8 linkini söker
+async function fetchLiveStarTvStream(starPageUrl) {
+  try {
+    var response = await axios.get(starPageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+      },
+      timeout: 4000 // Sunucu 4 saniye içinde cevap vermezse iptal et
+    });
+
+    var html = response.data;
+    var m3u8Regex = /(https:\/\/startv-p2\.mncdn\.com\/[^\s"']+\.m3u8[^\s"']*)/;
+    var match = html.match(m3u8Regex);
+
+    if (match && match[0]) {
+      return match[0].replace(/&amp;/g, '&');
+    }
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
 
 // ── CORS ─────────────────────────────────────────────────────────────
 app.use(function(req, res, next) {
@@ -185,8 +235,8 @@ app.get('/meta/:type/:id.json', function(req, res) {
   });
 });
 
-// ── STREAM ───────────────────────────────────────────────────────────
-app.get('/stream/:type/:id.json', function(req, res) {
+// ── STREAM (DÜZENLENEN KISIM) ───────────────────────────────────────────
+app.get('/stream/:type/:id.json', async function(req, res) {
   var parts    = req.params.id.split(':');
   var seriesId = parts[0];
   var epIndex  = parseInt(parts[1], 10);
@@ -198,63 +248,30 @@ app.get('/stream/:type/:id.json', function(req, res) {
 
   var ep = s.episodes[epIndex];
 
-  resolveStreamUrl(ep).then(function(url) {
-    if (!url) return res.json({ streams: [] });
+  // 1. ADIM: Eğer bu bir Star TV dizisiyse Canlı Çözücüyü devreye sok
+  if (s.channel === 'startv' && ep.streamPath) {
+    var starWebUrl = getStarTvWebPageUrl(ep.streamPath);
+    if (starWebUrl) {
+      var liveUrl = await fetchLiveStarTvStream(starWebUrl);
+      
+      if (liveUrl) {
+        var liveStream = {
+          url: liveUrl,
+          name: s.channelName + ' [Canlı]',
+          title: ep.title
+        };
 
-    var stream = {
-      url: url,
-      name: s.channelName,
-      title: ep.title,
-    };
-
-    // MNCDN linkler için Origin/Referer header gerekebilir
-    if (url.indexOf('mncdn.com') >= 0) {
-      stream.behaviorHints = {
-        notWebReady: false,
-        proxyHeaders: {
-          request: {
-            'Origin':  'https://www.startv.com.tr',
-            'Referer': 'https://www.startv.com.tr/'
+        // Gerekli proxy header'larını ekliyoruz
+        liveStream.behaviorHints = {
+          notWebReady: false,
+          proxyHeaders: {
+            request: {
+              'Origin':  'https://www.startv.com.tr',
+              'Referer': 'https://www.startv.com.tr/'
+            }
           }
-        }
-      };
+        };
+        return res.json({ streams: [liveStream] });
+      }
     }
-
-    res.json({ streams: [stream] });
-  }).catch(function() {
-    res.json({ streams: [] });
-  });
-});
-
-// ── ANASAYFA ─────────────────────────────────────────────────────────
-app.get('/', function(req, res) {
-  var host = req.protocol + '://' + req.get('host');
-  var channelRows = Object.keys(CHANNELS).map(function(k) {
-    var count = getSeriesByChannel(k).length;
-    var epCount = getSeriesByChannel(k).reduce(function(acc, s) { return acc + s.episodes.length; }, 0);
-    return '<li><strong>' + CHANNELS[k].name + '</strong> — ' + count + ' dizi, ' + epCount + ' bölüm</li>';
-  }).join('');
-
-  res.send([
-    '<!DOCTYPE html><html><head><meta charset="utf-8">',
-    '<title>🇹🇷 Türk Dizileri Addon</title>',
-    '<style>',
-    'body{font-family:sans-serif;max-width:700px;margin:40px auto;padding:0 20px;background:#111;color:#eee}',
-    'h1{color:#e50}a{color:#4af}',
-    '.btn{display:inline-block;margin:4px;padding:12px 24px;background:#e50;color:#fff;border-radius:8px;font-size:15px;text-decoration:none}',
-    'ul{line-height:2.2}',
-    '</style></head><body>',
-    '<h1>🇹🇷 Türk Dizileri Addon</h1>',
-    '<a class="btn" href="stremio://' + req.get('host') + '/manifest.json">Stremio\'ya Ekle</a>',
-    '<a class="btn" href="nuvio://' + req.get('host') + '/manifest.json">Nuvio\'ya Ekle</a>',
-    '<h2>Kataloglar</h2><ul>' + channelRows + '</ul>',
-    '<p style="color:#888;font-size:13px">Manifest: <a href="/manifest.json">' + host + '/manifest.json</a></p>',
-    '</body></html>'
-  ].join(''));
-});
-
-app.listen(PORT, function() {
-  console.log('🇹🇷 Türk Dizileri Addon v2.0 — http://localhost:' + PORT);
-  var total = SERIES.reduce(function(a, s) { return a + s.episodes.length; }, 0);
-  console.log('Toplam: ' + SERIES.length + ' dizi, ' + total + ' bölüm');
-});
+  }
